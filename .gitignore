@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+
+# 실제 설정(비밀값 포함)은 저장소에 넣지 않는다 — config.example.yaml을 복사해 쓴다
+config.yaml

@@ -1,0 +1,46 @@
+# rvnode 설정 예시. Radxa에서는 /etc/rvnode.yaml에 둔다 (비밀값이 들어가므로 저장소에 넣지 않는다).
+
+log_level: info            # debug | info | warning | error
+
+node:
+  # HA 장치 ID. ESP 9FCEE4(MACH+JBD+TPMS)를 넘겨받으므로 같은 값을 쓴다 — uniq_id가 이어져야 엔티티·기록이 유지된다.
+  device_id: 9FCEE4
+  # <base>/status (LWT), <base>/sys/info, <base>/sys/cmd
+  base: rv/mach
+  label: RV node
+
+mqtt:
+  host: broker.local       # 1~4단계는 ESP 브로커, 5단계(브로커 전환) 뒤에는 localhost
+  port: 1883
+  username: ""
+  password: ""
+  client_id: ""            # 비우면 essio-radxa-<device_id>
+  keepalive: 30
+  discovery: true
+  discovery_prefix: homeassistant
+
+# 장치 하나 = ESP의 슬롯 하나. prefix를 비우면 ESP와 같은 규칙:
+#   base가 /<slug>로 끝나면 base 그대로, 아니면 <base>/<slug>
+devices:
+  - type: dummy             # 하드웨어 없이 MQTT·HA 흐름을 확인하는 장치
+    slug: demo
+    label: Demo
+    prefix: rvtest/demo     # 그림자 운용·시험은 rvtest/ 아래에
+    discovery: false        # 시험 장치는 HA에 올리지 않는다
+    enabled: true
+    params:
+      interval_s: 5
+
+  # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
+  # - type: tpms
+  #   slug: tpms            # → rv/mach/tpms
+  #   label: TPMS
+  # - type: jbd
+  #   slug: bms
+  #   prefix: rv/bms
+  #   label: BMS
+  #   params: { mac: "A5:C2:37:..." }
+  # - type: mach
+  #   slug: mach            # → rv/mach
+  #   label: MACH
+  #   params: { mac: "...", pin: 123456 }
