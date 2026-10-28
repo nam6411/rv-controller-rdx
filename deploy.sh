@@ -70,6 +70,8 @@ sudo systemctl enable --now mosquitto >/dev/null 2>&1
 sudo systemctl restart mosquitto
 sudo systemctl enable rvnode >/dev/null 2>&1
 sudo systemctl restart rvnode
+# 전원이 곧 끊겨도 방금 쓴 유닛·설정이 빈 파일로 남지 않게 (2026-10-29: 배포 직후 전원이 나가 0바이트가 됐다)
+sync
 sleep 3
 systemctl --no-pager --lines=12 status rvnode || true
 EOF
