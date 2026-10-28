@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ..ble import connect_lock
+from ..ble import connect_lock, scanner
 from ..device import Device, Sensor, Switch
 from ..frames import jbd
 
@@ -86,17 +86,16 @@ class Jbd(Device):
             await self._connect_locked()
 
     async def _connect_locked(self) -> None:
-        from bleak import BleakClient, BleakScanner
+        from bleak import BleakClient
 
-        if self.address:
-            dev = await BleakScanner.find_device_by_address(self.address, timeout=15)
-        else:
-            def match(d, adv):
-                if self.name:
-                    return (d.name or adv.local_name) == self.name
-                return SERVICE in (adv.service_uuids or [])
+        def match(d, adv):
+            if self.address:
+                return d.address.upper() == self.address.upper()
+            if self.name:
+                return (d.name or adv.local_name) == self.name
+            return SERVICE in (adv.service_uuids or [])
 
-            dev = await BleakScanner.find_device_by_filter(match, timeout=15)
+        dev = await scanner.find(match, timeout=15)
         if dev is None:
             raise ConnectionError(f"BMS {self.address or self.name or '(FF00)'} not found")
         client = BleakClient(dev, timeout=15, disconnected_callback=lambda _c: self._rx_event.set())

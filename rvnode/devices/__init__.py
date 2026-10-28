@@ -10,6 +10,7 @@ from .dummy import Dummy
 from .gps import Gps
 from .jbd import Jbd
 from .mach import Mach
+from .tpms import Tpms
 
 if TYPE_CHECKING:
     from ..config import DeviceConfig
@@ -21,6 +22,7 @@ TYPES: dict[str, type[Device]] = {
     Gps.type: Gps,
     Jbd.type: Jbd,
     Mach.type: Mach,
+    Tpms.type: Tpms,
 }
 
 

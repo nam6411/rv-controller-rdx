@@ -303,6 +303,16 @@ function sensorCard(d){
     <div class="btns">모드 ${opts("ac_mode",ac.mode,["off","fan","cool","heat","auto"],cok)}</div>
     <div class="btns">바람 ${opts("ac_fan",ac.fan,["low","mid","high","night"],cok)}</div></div>`;
   }
+  if(d.type==="tpms"){
+    const names=Object.keys(s).filter(k=>s[k]&&typeof s[k]==="object"&&"mac" in s[k]&&!Array.isArray(s[k]));
+    const tyre=k=>{const t=s[k];const ago=t.age_s===undefined?"수신 없음":t.age_s<60?`${t.age_s}초 전`:`${Math.floor(t.age_s/60)}분 전`;
+      return `<div><span>${esc(k)} <span class="pill ${t.online?"on":"off"}">${t.online?"수신":"끊김"}</span></span><b>${f(t.pressure,t.unit==="psi"?1:2)} ${esc(t.unit||"")}</b>
+      <span>${f(t.temp_c,1)}°C · 배터리 ${f(t.battery,0)}% · ${ago}${t.rssi!==undefined?" · "+t.rssi+" dBm":""}</span>${t.no_pressure?'<span class="off">압력 없음</span>':""}</div>`};
+    const un=s.unassigned||[];
+    return `${head(d)} <span class="hint">광고 ${f(s.adverts,0)}개 수신</span>
+    <div class="kv" style="margin-top:8px">${names.map(tyre).join("")||'<span class="hint">등록한 센서 없음</span>'}</div>
+    ${un.length?`<div style="margin-top:8px" class="hint">등록 안 된 TPMS — MAC을 설정의 sensors[].mac에 넣는다</div><table>${un.map(u=>`<tr><td><code>${esc(u.mac)}</code></td><td>${u.sensor_no}번</td><td>${f(u.bar,2)} bar</td><td>${u.rssi} dBm</td><td>${u.age_s}초 전</td></tr>`).join("")}</table>`:""}</div>`;
+  }
   return `${head(d)}<pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
 }
 let fetArm=null;

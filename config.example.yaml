@@ -106,10 +106,19 @@ devices:
       aventa: { enabled: true, lin: 1, model: comfort, on_mode: auto, default_set_c: 22 }
       level: { pitch_axis: z, pitch_sign: -1, roll_axis: y, roll_sign: 1, pitch_offset: 0, roll_offset: 0 }
 
+  # BLE TPMS (수동 스캔, 연결 없음) — ESP tpms와 같은 키. 넘겨받으면 slug: tpms (base가 rv/mach면 rv/mach/tpms)
+  - type: tpms
+    slug: tpms
+    label: TPMS
+    enabled: false
+    params:
+      stale_s: 900          # 이만큼 소식 없으면 그 센서 online=false
+      sensors:              # mac을 비워 두면 자리만 — 웹의 '등록 안 된 TPMS'에서 MAC을 골라 넣는다
+        - { mac: "80:ea:ca:13:b3:61", name: tow_air, label: Tow Air Suspension, unit: psi }
+        - { mac: "81:ea:ca:23:b9:f4", name: caravan_left, label: Caravan Left Tyre, unit: bar }
+        - { mac: "82:ea:ca:33:6c:e7", name: caravan_right, label: Caravan Right Tyre, unit: bar }
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
-  # - type: tpms
-  #   slug: tpms            # → rv/mach/tpms
-  #   label: TPMS
   # - type: jbd
   #   slug: bms
   #   prefix: rv/bms

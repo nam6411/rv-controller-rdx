@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ..ble import connect_lock
+from ..ble import connect_lock, scanner
 from ..device import Control, Device, Sensor, Switch
 from ..frames import aventa as av
 from ..frames import mach as m
@@ -174,13 +174,12 @@ class Mach(Device):
             await self._connect_locked()
 
     async def _connect_locked(self) -> None:
-        from bleak import BleakClient, BleakScanner
+        from bleak import BleakClient
 
         if self.ble_address:
-            dev = await BleakScanner.find_device_by_address(self.ble_address, timeout=15)
+            dev = await scanner.find(lambda d, adv: d.address.upper() == self.ble_address.upper(), timeout=15)
         else:
-            dev = await BleakScanner.find_device_by_filter(
-                lambda d, adv: (d.name or adv.local_name) == self.ble_name, timeout=15)
+            dev = await scanner.find(lambda d, adv: (d.name or adv.local_name) == self.ble_name, timeout=15)
         if dev is None:
             raise ConnectionError(f"{self.ble_address or self.ble_name} not found")
         client = BleakClient(dev, timeout=20, disconnected_callback=lambda _c: self._rx_event.set())
