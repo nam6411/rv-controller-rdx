@@ -164,6 +164,8 @@ async def serve(node: Node) -> None:
 PAGE = r"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>rvnode 설정</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{--bg:#f4f5f2;--card:#fff;--fg:#1d211f;--muted:#66706b;--line:#d9ddd8;--accent:#1f6f5c;--bad:#b3261e;--ok:#2e7d32}
 @media (prefers-color-scheme:dark){:root{--bg:#121514;--card:#1b1f1d;--fg:#e4e8e5;--muted:#9aa49f;--line:#2c322f;--accent:#58c4a6;--bad:#f28b82;--ok:#81c995}}
@@ -192,6 +194,7 @@ button.sec{background:transparent;color:var(--accent);border:1px solid var(--acc
 .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.btns button{padding:4px 10px;font-size:13px}
 </style></head><body><main>
 <header><h1>rvnode 설정</h1><div class="hint" id="sub"></div></header>
+<section class="card" id="mapcard" hidden><h2>위치 <span class="hint" id="maddr"></span></h2><div id="map" style="height:320px;border-radius:6px;background:var(--bg)"></div><div class="btns"><button class="sec" id="mfollow">따라가기 켜짐</button><a class="hint" id="mlink" target="_blank" rel="noopener"></a></div></section>
 <section class="card" id="videocard" hidden><h2>영상 <span class="hint" id="vinfo"></span></h2><div class="btns"><button id="vbtn">보기</button><button class="sec" id="vsnap">한 장</button></div><img id="vimg" alt="" style="display:none;width:100%;max-width:960px;margin-top:8px;border-radius:6px;background:#000"></section>
 <section class="card"><h2>센서 <span class="hint" id="live"></span></h2><div id="sensors">불러오는 중…</div></section>
 <section class="card"><h2>상태</h2><div id="status">불러오는 중…</div></section>
@@ -281,6 +284,7 @@ function sensorCard(d){
       <div><span>위성 (사용/보임)</span><b>${s.sats??0} / ${s.sats_seen??0}</b></div><div><span>HDOP</span><b>${f(s.hdop,2)}</b></div>
       <div><span>속도</span><b>${f(s.speed_kmh)} km/h</b></div><div><span>진행 방향</span><b>${f(s.course,0)}°</b></div>
       <div><span>고도</span><b>${f(s.alt_m)} m</b></div><div><span>자기장 세기</span><b>${f(c.strength,0)}</b></div>
+      <div style="grid-column:1/-1"><span>주소</span><b style="font-size:15px">${esc(s.address||"–")}</b></div>
     </div><div>${compass(s.heading)}</div></div>
     <div class="btns"><button class="sec" onclick="cmd('${d.slug}','control','compass_cal_start')">나침반 보정 시작</button>
     <button class="sec" onclick="cmd('${d.slug}','control','compass_cal_stop')">보정 끝(저장)</button>
@@ -361,6 +365,7 @@ async function status(){
     for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${conn(d)[0]}">${conn(d)[1]}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span></div>`;
     $("#status").innerHTML=h;
     $("#sensors").innerHTML=s.devices.map(sensorCard).join("")||"장치 없음";
+    updateMap(s.devices.find(d=>d.type==="gps"&&d.online));
     const v=s.devices.find(d=>d.type==="video"&&d.enabled!==false);$("#videocard").hidden=!v;vslug=v?v.slug:null;
     $("#live").textContent="· "+new Date().toLocaleTimeString();
   }catch(e){$("#status").textContent="연결 안 됨"}
@@ -368,6 +373,20 @@ async function status(){
 $("#save").onclick=()=>{try{save(collect())}catch(e){$("#msg").innerHTML=`<span class="off">JSON 칸 오류: ${esc(e.message)}</span>`}};
 $("#saveraw").onclick=()=>{try{save(JSON.parse($("#raw").value))}catch(e){$("#msg").innerHTML=`<span class="off">${esc(e.message)}</span>`}};
 $("#reload").onclick=load;
+let map=null,marker=null,follow=true;
+function updateMap(d){
+  const g=d&&d.state||{};$("#mapcard").hidden=!d;
+  if(!d||g.lat==null)return;
+  $("#maddr").textContent=g.address||"";
+  $("#mlink").href=`https://www.openstreetmap.org/?mlat=${g.lat}&mlon=${g.lon}#map=17/${g.lat}/${g.lon}`;$("#mlink").textContent="OSM에서 열기";
+  if(typeof L==="undefined"){$("#map").textContent="지도를 불러오지 못했다 (인터넷 필요)";return}
+  if(!map){map=L.map("map").setView([g.lat,g.lon],16);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+    marker=L.marker([g.lat,g.lon]).addTo(map);map.on("dragstart",()=>{follow=false;$("#mfollow").textContent="따라가기 꺼짐"})}
+  marker.setLatLng([g.lat,g.lon]).bindTooltip(g.address||`${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}`);
+  if(follow)map.panTo([g.lat,g.lon],{animate:false});
+}
+$("#mfollow").onclick=()=>{follow=!follow;$("#mfollow").textContent=follow?"따라가기 켜짐":"따라가기 꺼짐"};
 let vslug=null;
 function vstop(){$("#vimg").src="";$("#vimg").style.display="none";$("#vbtn").textContent="보기"}
 $("#vbtn").onclick=()=>{if(!vslug)return;if($("#vimg").style.display==="none"){$("#vimg").src=`api/video/${vslug}.mjpeg?t=${Date.now()}`;$("#vimg").style.display="";$("#vbtn").textContent="멈춤"}else vstop()};

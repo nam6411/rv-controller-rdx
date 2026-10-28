@@ -4,6 +4,9 @@ gpsd가 /dev/ttyS4를 쥐고, 여기서는 gpsd 소켓(2947)의 TPV·SKY 보고�
 나침반은 /dev/i2c-5 0x0D. 화살표 기준 자북 방위 = 265° − 칩 각도, 진북 = 자북 + 편각(서편 −).
 
 발행 <prefix>/state (retain): 10초마다 + 50m 넘게 움직이면/fix가 바뀌면 바로. 웹은 state()를 1초마다 직접 읽는다.
+HA 지도: device_tracker `<slug>_location` ← <prefix>/location (retain, json_attributes: latitude·longitude·gps_accuracy…).
+fix를 잃어도 마지막 위치를 그대로 둔다(지붕 밑에 세워 둔 경우).
+주소: OSM Nominatim 역지오코딩 — 처음 fix와 200m 넘게 움직였을 때만, 60초에 한 번까지. 인터넷이 없으면 다음에 다시.
 
 params:
   gpsd            host:port (기본 127.0.0.1:2947)
@@ -13,6 +16,7 @@ params:
   declination     편각(°, 서편 −, 기본 −8.5)
   heading_offset  화살표 기준 = offset − 칩 각도 (기본 265)
   cal             {cx, cy, rx, ry} 하드·소프트 아이언 보정 (보정 버튼이 고쳐 쓴다)
+  geocode         {enabled: true, min_move_m: 200, min_interval_s: 60, lang: ko}
 """
 
 from __future__ import annotations
@@ -26,6 +30,8 @@ from typing import Any
 from ..device import BinarySensor, Control, Device, Sensor
 
 PUBLISH_EVERY_S = 10
+NOMINATIM = "https://nominatim.openstreetmap.org/reverse"
+USER_AGENT = "rvnode/0.1 (personal RV controller)"  # Nominatim 정책: 알아볼 수 있는 UA
 MOVE_PUBLISH_M = 50
 DEFAULT_CAL = {"cx": 351.0, "cy": -284.0, "rx": 377.0, "ry": 388.0}  # docs/24 §7.3 작업대 값
 
@@ -44,6 +50,20 @@ def heading_deg(x: float, y: float, cal: dict[str, float], offset: float, declin
     yn = (y - cal["cy"]) / (cal["ry"] or 1)
     chip = math.degrees(math.atan2(yn, xn)) % 360
     return (offset - chip + declination) % 360
+
+
+def short_address(doc: dict[str, Any]) -> str | None:
+    """Nominatim reverse → "경기도 화성시 동탄대로 123" 같은 큰 단위부터의 짧은 주소 (한국식 순서)."""
+    a = doc.get("address") or {}
+    parts = [a.get("province") or a.get("state"), a.get("city") or a.get("town") or a.get("county"),
+             a.get("borough") or a.get("city_district") or a.get("district"),
+             a.get("suburb") or a.get("quarter") or a.get("village") or a.get("neighbourhood"),
+             a.get("road"), a.get("house_number")]
+    out: list[str] = []
+    for p in parts:
+        if p and p not in out:
+            out.append(p)
+    return " ".join(out) or doc.get("display_name")
 
 
 class GpsFix:
@@ -130,6 +150,7 @@ class Gps(Device):
         Sensor("speed_kmh", "Speed", "km/h", "speed", "measurement"),
         Sensor("course", "Course", "°", "", "measurement"),
         Sensor("heading", "Heading", "°", "", "measurement"),
+        Sensor("address", "Address"),
     )
     binary_sensors = (BinarySensor("fix", "GPS fix"),)
     controls = (
@@ -160,6 +181,16 @@ class Gps(Device):
         self._last_pub = 0.0
         self._last_pos: tuple[float, float] | None = None
         self._last_fix = False
+        geo = p.get("geocode") or {}
+        self.geo_enabled = bool(geo.get("enabled", True))
+        self.geo_move_m = float(geo.get("min_move_m", 200))
+        self.geo_interval_s = float(geo.get("min_interval_s", 60))
+        self.geo_lang = str(geo.get("lang", "ko"))
+        self.address: str | None = None
+        self.address_full: str | None = None
+        self._geo_pos: tuple[float, float] | None = None
+        self._geo_at = -1e9
+        self._geo_task: asyncio.Task | None = None
 
     # ---- 발행 판단 ----
 
@@ -172,12 +203,61 @@ class Gps(Device):
 
     async def _maybe_publish(self) -> None:
         now = self.clock()
+        self._maybe_geocode(now)
         if self._should_publish(now):
             await self.publish_state()
+            await self.publish_location()
             self._last_pub = now
             self._last_fix = self.g.fix
             if self.g.fix and self.g.lat is not None:
                 self._last_pos = (self.g.lat, self.g.lon)
+
+    # ---- HA 지도·주소 ----
+
+    def ha_extra(self, info):
+        return [("device_tracker", "location", {
+            "name": "Location", "json_attributes_topic": f"{self.prefix}/location", "source_type": "gps",
+            "icon": "mdi:rv-truck"})]
+
+    async def publish_location(self) -> None:
+        g = self.g
+        if not g.fix or g.lat is None:
+            return
+        doc = {"latitude": g.lat, "longitude": g.lon, "gps_accuracy": round(max(5.0, (g.hdop or 1) * 5)),
+               "altitude": g.alt_m, "speed": g.speed_kmh, "course": g.course, "address": self.address}
+        await self.node.bus.publish(f"{self.prefix}/location", json.dumps(doc, ensure_ascii=False, separators=(",", ":")),
+                                    retain=True)
+
+    def _maybe_geocode(self, now: float) -> None:
+        g = self.g
+        if not self.geo_enabled or not g.fix or g.lat is None or (self._geo_task and not self._geo_task.done()):
+            return
+        if now - self._geo_at < self.geo_interval_s:
+            return
+        if self._geo_pos and distance_m(*self._geo_pos, g.lat, g.lon) < self.geo_move_m:
+            return
+        self._geo_at = now
+        self._geo_task = asyncio.create_task(self._geocode(g.lat, g.lon))
+
+    async def _geocode(self, lat: float, lon: float) -> None:
+        import aiohttp
+
+        params = {"format": "jsonv2", "lat": f"{lat:.6f}", "lon": f"{lon:.6f}", "zoom": "18", "addressdetails": "1",
+                  "accept-language": self.geo_lang}
+        try:
+            async with aiohttp.ClientSession(headers={"User-Agent": USER_AGENT},
+                                             timeout=aiohttp.ClientTimeout(total=10)) as s:
+                async with s.get(NOMINATIM, params=params) as r:
+                    r.raise_for_status()
+                    doc = await r.json()
+        except Exception as e:
+            self.log.info("geocode failed: %s", e)
+            return
+        self.address, self.address_full = short_address(doc), doc.get("display_name")
+        self._geo_pos = (lat, lon)
+        self.log.info("address: %s", self.address)
+        await self.publish_state()
+        await self.publish_location()
 
     # ---- 루프 ----
 
@@ -256,6 +336,7 @@ class Gps(Device):
             "fix": g.fix, "lat": g.lat, "lon": g.lon, "alt_m": g.alt_m, "sats": g.sats, "sats_seen": g.sats_seen,
             "hdop": g.hdop, "speed_kmh": g.speed_kmh, "course": g.course, "heading": self.heading, "utc": g.utc,
             "compass": {"ok": self.compass_ok, "strength": self.mag_strength, "calibrating": self.calibrating},
+            "address": self.address, "address_full": self.address_full,
         }
 
     async def write_control(self, name: str, value: str) -> bool:

@@ -163,6 +163,10 @@ class Device:
         """엔티티 목록이 바뀌었을 때 (예: 셀 수를 장치에서 알아냄)."""
         await self.node.publish_discovery(self)
 
+    def ha_extra(self, info: Any) -> list[tuple[str, str, dict[str, Any]]]:
+        """표준 목록(sensor·switch…)에 없는 HA 엔티티 — [(component, 이름, 페이로드 일부)]. ha.py가 uniq_id·avty·dev를 채운다."""
+        return []
+
     # ---- 노드가 쓴다 ----
 
     def meta(self) -> dict[str, Any]:

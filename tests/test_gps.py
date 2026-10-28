@@ -33,3 +33,29 @@ def test_heading_matches_bench_mapping():
 
 def test_distance():
     assert 49 < distance_m(37.5665, 126.978, 37.56695, 126.978) < 51
+
+
+def test_short_address_korean_order():
+    from rvnode.devices.gps import short_address
+    doc = {"display_name": "123, 동탄대로, 오산동, 화성시, 경기도, 18469, 대한민국",
+           "address": {"house_number": "123", "road": "동탄대로", "quarter": "오산동", "city": "화성시",
+                       "province": "경기도", "postcode": "18469", "country": "대한민국"}}
+    assert short_address(doc) == "경기도 화성시 오산동 동탄대로 123"
+    assert short_address({"display_name": "X", "address": {}}) == "X"
+
+
+def test_device_tracker_discovery():
+    from rvnode import ha
+    from rvnode.config import parse
+    from rvnode.node import Node
+
+    from .conftest import FakeBus
+    node = Node(parse({"node": {"device_id": "9FCEE4", "base": "rv/radxa"},
+                       "devices": [{"type": "gps", "slug": "gps", "params": {"compass": False}}]}))
+    node.bus = FakeBus()
+    cfgs = dict(ha.all_configs("homeassistant", node.info, node.devices[0]))
+    doc = cfgs["homeassistant/device_tracker/9FCEE4_gps/location/config"]
+    assert doc["uniq_id"] == "9FCEE4_gps_location" and doc["def_ent_id"] == "device_tracker.gps_location"
+    assert doc["json_attributes_topic"] == "rv/radxa/gps/location" and doc["source_type"] == "gps"
+    assert doc["name"] == "Location" and "dev" in doc and doc["avty"]
+    assert "homeassistant/sensor/9FCEE4_gps/address/config" in cfgs

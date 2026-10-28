@@ -141,4 +141,7 @@ def all_configs(discovery_prefix: str, info: DeviceInfo, dev: Device) -> list[tu
         out.append((config_topic(discovery_prefix, c.kind, info, dev, c.name), control(info, dev, c)))
     for e in dev.events:
         out.append((config_topic(discovery_prefix, "event", info, dev, e.name), event(info, dev, e)))
+    for comp, name, extra in dev.ha_extra(info):
+        doc = {**_common(info, dev, comp, name, extra.pop("name", name)), **extra}
+        out.append((config_topic(discovery_prefix, comp, info, dev, name), _finish(doc, info, dev, None)))
     return out
