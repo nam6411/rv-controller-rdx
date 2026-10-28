@@ -35,6 +35,33 @@ class MqttConfig:
     discovery_prefix: str = "homeassistant"
 
 
+# ls 브로커로 나가는 mosquitto 브리지 (docs/17, docs/29 §3.3). 값은 웹 설정에서 바꾼다.
+BRIDGE_OUT = "rv/#,homeassistant/#"
+BRIDGE_IN = ("rv/+/switch/+/set,rv/+/+/switch/+/set,rv/+/control/+/set,rv/+/+/control/+/set,"
+             "rv/+/sys/cmd,rv/+/+/sys/cmd,homeassistant/status")
+
+
+@dataclass
+class BridgeConfig:
+    enabled: bool = False
+    host: str = ""
+    port: int = 8883
+    tls: bool = True
+    username: str = ""
+    password: str = ""
+    remote_prefix: str = ""
+    out_topics: str = BRIDGE_OUT
+    in_topics: str = BRIDGE_IN
+
+
+@dataclass
+class WebConfig:
+    enabled: bool = True
+    port: int = 80
+    bind: str = "0.0.0.0"
+    password: str = ""  # 비우면 인증 없음 (차 안 LAN 전용)
+
+
 @dataclass
 class DeviceConfig:
     type: str
@@ -52,6 +79,8 @@ class Config:
     mqtt: MqttConfig
     devices: list[DeviceConfig]
     log_level: str = "info"
+    bridge: BridgeConfig = field(default_factory=BridgeConfig)
+    web: WebConfig = field(default_factory=WebConfig)
 
     def client_id(self) -> str:
         return self.mqtt.client_id or f"essio-radxa-{self.node.device_id}"
@@ -94,9 +123,20 @@ def parse(raw: dict[str, Any]) -> Config:
         dev.label = dev.label or dev.slug
         dev.prefix = dev.prefix.rstrip("/") or slot_prefix(node.base, dev.slug)
         devices.append(dev)
-    return Config(node=node, mqtt=mqtt, devices=devices, log_level=raw.get("log_level", "info"))
+    bridge = _take(BridgeConfig, raw.get("bridge"), "bridge")
+    if bridge.enabled and not bridge.host:
+        raise ConfigError("bridge: enabled인데 host가 비었다")
+    web = _take(WebConfig, raw.get("web"), "web")
+    unknown = set(raw) - {"node", "mqtt", "devices", "log_level", "bridge", "web"}
+    if unknown:
+        raise ConfigError(f"unknown top-level keys {sorted(unknown)}")
+    return Config(node=node, mqtt=mqtt, devices=devices, log_level=raw.get("log_level", "info"), bridge=bridge, web=web)
+
+
+def load_raw(path: str | Path) -> dict[str, Any]:
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 def load(path: str | Path) -> Config:
-    with open(path, encoding="utf-8") as f:
-        return parse(yaml.safe_load(f) or {})
+    return parse(load_raw(path))

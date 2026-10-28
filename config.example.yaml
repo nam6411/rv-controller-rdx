@@ -19,6 +19,23 @@ mqtt:
   discovery: true
   discovery_prefix: homeassistant
 
+# 외부 브리지 — ls의 mosquitto (mqtt.nam6411.com:8883, TLS). 웹 설정(http://radxa.local/)에서 바꾸면
+# /etc/mosquitto/conf.d/rv-bridge.conf를 다시 쓰고 mosquitto를 재시작한다.
+bridge:
+  enabled: false
+  host: mqtt.nam6411.com
+  port: 8883
+  tls: true
+  username: radxa
+  password: ""             # 웹에서 넣는다 (저장소에 넣지 않는다)
+  remote_prefix: ""
+
+# 웹 설정·상태 페이지
+web:
+  enabled: true
+  port: 80
+  password: ""             # 비우면 인증 없음 (차 안 LAN 전용)
+
 # 장치 하나 = ESP의 슬롯 하나. prefix를 비우면 ESP와 같은 규칙:
 #   base가 /<slug>로 끝나면 base 그대로, 아니면 <base>/<slug>
 devices:

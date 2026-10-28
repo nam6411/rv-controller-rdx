@@ -10,6 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "aiomqtt>=2.3,<3",
     "PyYAML>=6",
+    "aiohttp>=3.9",
 ]
 
 [project.optional-dependencies]

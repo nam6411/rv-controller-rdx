@@ -1,0 +1,36 @@
+// 옵토 입력 핀을 부팅 때 풀업으로 — rv-controller docs/18 §12.1.
+// Rockchip GPIO 드라이버는 gpiod의 bias=pull-up 요청을 적용하지 않아 칩 기본값(풀다운)이 남는다.
+// 그러면 옵토가 꺼져 있어도 0(켜짐)으로 읽힌다. pinctrl 자체에 hog로 붙여 부팅 때 바로 적용한다.
+//   핀 37 GPIO1_A4 (차 시동, U8)   핀 22 GPIO3_C1 (좌 깜빡이, U4)
+//   핀 32 GPIO3_C2 (후진, U6)      핀 28 GPIO4_B3 (우 깜빡이, U5 — 보드 I2C 풀업도 있음)
+// rockchip,pins = <bank pin func &config>, func 0 = GPIO
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "rvnode: pull-up on opto input pins 22, 28, 32, 37";
+		compatible = "radxa,zero3";
+		category = "misc";
+		exclusive = "GPIO1_A4", "GPIO3_C1", "GPIO3_C2", "GPIO4_B3";
+		description = "Opto-coupler inputs idle high (rv-controller bird-view inputs).";
+	};
+
+	fragment@0 {
+		target = <&pinctrl>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rvnode_inputs>;
+
+			rvnode {
+				rvnode_inputs: rvnode-inputs {
+					rockchip,pins =
+						<1 4 0 &pcfg_pull_up>,
+						<3 17 0 &pcfg_pull_up>,
+						<3 18 0 &pcfg_pull_up>,
+						<4 11 0 &pcfg_pull_up>;
+				};
+			};
+		};
+	};
+};

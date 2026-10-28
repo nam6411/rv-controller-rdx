@@ -13,6 +13,8 @@ SupplementaryGroups=bluetooth gpio spi i2c dialout video
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/rvnode/venv/bin/python -m rvnode -c /etc/rvnode.yaml
 WorkingDirectory=/opt/rvnode
+# 웹 설정 페이지를 80번에서 연다
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=always
 RestartSec=3
 

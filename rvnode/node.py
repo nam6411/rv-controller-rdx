@@ -35,8 +35,9 @@ def _wifi_mac() -> str:
 
 
 class Node:
-    def __init__(self, cfg: Config, only: set[str] | None = None):
+    def __init__(self, cfg: Config, only: set[str] | None = None, cfg_path: str = "/etc/rvnode.yaml"):
         self.cfg = cfg
+        self.cfg_path = cfg_path
         self.base = cfg.node.base
         self.bus = Bus(
             host=cfg.mqtt.host,
@@ -184,6 +185,10 @@ class Node:
                 tg.create_task(self._supervised("mqtt", self.bus.run), name="mqtt"),
                 tg.create_task(self._supervised("sysinfo", self._sys_info_loop), name="sysinfo"),
             ]
+            if self.cfg.web.enabled:
+                from . import web
+
+                tasks.append(tg.create_task(self._supervised("web", lambda: web.serve(self)), name="web"))
             for d in self.devices:
                 tasks.append(tg.create_task(self._supervised(d.slug, d.run), name=d.slug))
                 tasks.append(tg.create_task(self._supervised(f"{d.slug}/cmd", d.handle_commands), name=f"{d.slug}/cmd"))

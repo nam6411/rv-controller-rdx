@@ -42,4 +42,4 @@ def cli() -> None:
         sys.exit(2)
     _setup_logging(args.log_level or cfg.log_level)
     only = set(filter(None, (args.only or "").split(","))) or None
-    sys.exit(asyncio.run(_main(Node(cfg, only))))
+    sys.exit(asyncio.run(_main(Node(cfg, only, cfg_path=args.config))))

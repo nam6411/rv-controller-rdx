@@ -49,6 +49,9 @@ rv-controller `docs/18` §12.2 "AVM 켜짐"과 트리거 출력을 맡는다. �
 - 출력: 버드뷰 ACC(핀 35), 시점 트리거 후방·좌·우(36·38·40).
 - 전원 = 차 시동 OR `switch.birdview_power` OR 다른 모듈의 `request_power()`(원격 영상 등). 시동을 끄면 `off_delay_s`(기본 30초) 뒤 끈다.
 - 시점(`select.birdview_mode` = auto): 후진 → 후방, 한쪽 깜빡이 → 그쪽(마지막 펄스 뒤 `blink_hold_s` 유지), 비상등·평상시 → 기본 화면.
+- **입력 풀업 오버레이**(`dts/rvnode-inputs-pullup.dts`): Rockchip GPIO 드라이버는 gpiod의 `bias=pull-up`을 적용하지 않아
+  칩 기본값(풀다운)이 남는다 — 옵토가 꺼져 있어도 "켜짐"으로 읽혀 ACC·트리거가 켜진다. `deploy.sh`가 부팅 때 핀 22·28·32·37을
+  풀업으로 거는 오버레이를 깔고 켠다(재부팅 후 적용). 확인: `/sys/kernel/debug/pinctrl/pinctrl-rockchip-pinctrl/pinconf-pins`.
 - **인터록**: 트리거 전원(J2-1)이 버드뷰 상시 전원이라, 트리거는 핀 35가 켜져 있을 때만 켜고 끌 때는 트리거부터 내린다.
   데몬이 끝날 때도 트리거 → 전원 순서로 끈다.
 - 보드에서 처음: `gpioinfo`로 핀 35(GPIO3_A4 = gpiochip3/4)·37(GPIO1_A4 = gpiochip1/4)이 맞는지 보고 `enabled: true`.
