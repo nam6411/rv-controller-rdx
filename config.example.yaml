@@ -81,6 +81,16 @@ devices:
       heading_offset: 265   # 화살표 기준 자북 = 265 − 칩 각도 (docs/24 §7.3)
       cal: { cx: 351, cy: -284, rx: 377, ry: 388 }   # 설치 자리에서 보정 버튼으로 다시 잡는다
 
+  # JBD BMS (BLE FF00) — ESP jbdbms와 같은 키. 실제 카라반 BMS를 넘겨받을 때는 slug: bms, prefix: rv/bms (docs/29 §3.1)
+  - type: jbd
+    slug: bmstest           # 시험용 4S 파워뱅크 — 실제 9FCEE4_bms_* 엔티티를 덮지 않게 다른 slug
+    label: BMS (test)
+    discovery: false
+    enabled: false
+    params:
+      ble_address: "A4:C1:37:19:9C:10"
+      interval_s: 5
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
   # - type: tpms
   #   slug: tpms            # → rv/mach/tpms

@@ -254,8 +254,28 @@ function sensorCard(d){
     <div class="btns">${["auto","rear","left","right","none"].map(m=>`<button class="${m===s.mode?"":"sec"}" onclick="cmd('${d.slug}','control','mode','${m}')">${m}</button>`).join("")}
     <button class="${s.keep_on?"":"sec"}" onclick="cmd('${d.slug}','switch','power','${s.keep_on?"OFF":"ON"}')">계속 켜기 ${s.keep_on?"끄기":"켜기"}</button></div></div>`;
   }
+  if(d.type==="jbd"){
+    const b=s.ble||{},cells=s.cell_v||[],mn=Math.min(...cells),mx=Math.max(...cells);
+    const bar=v=>{const pct=Math.max(0,Math.min(100,(v-2.8)/(3.65-2.8)*100));const hi=cells.length>1&&v===mx,lo=cells.length>1&&v===mn;
+      return `<div style="display:grid;grid-template-columns:52px 1fr 64px;gap:6px;align-items:center;font-size:13px"><span class="hint">${cells.indexOf(v)+1}</span><div style="background:var(--bg);border-radius:4px;height:12px"><div style="width:${pct}%;height:12px;border-radius:4px;background:${hi?"var(--bad)":lo?"var(--muted)":"var(--accent)"}"></div></div><b style="font-variant-numeric:tabular-nums">${v.toFixed(3)} V</b></div>`};
+    const cur=s.current??0;
+    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${b.connected?"on":"off"}">${b.connected?"BLE 연결":"BLE 끊김"}</span> <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
+    <div class="sens" style="margin-top:8px"><div class="kv">
+      <div><span>SOC</span><b>${f(s.soc,0)} %</b></div><div><span>전압</span><b>${f(s.pack_v,2)} V</b></div>
+      <div><span>전류 (${cur>0?"충전":cur<0?"방전":"대기"})</span><b>${f(s.current,2)} A</b></div><div><span>전력</span><b>${f(s.power,0)} W</b></div>
+      <div><span>남은 / 전체</span><b>${f(s.remain_ah,1)} / ${f(s.full_ah,0)} Ah</b></div><div><span>사이클</span><b>${f(s.cycles,0)}</b></div>
+      <div><span>셀 편차</span><b>${f((s.cell_diff??0)*1000,0)} mV</b></div><div><span>온도</span><b>${(s.ntc||[]).map(t=>t.toFixed(1)).join(" · ")||"–"} °C</b></div>
+      <div><span>보호 비트</span><b>0x${(s.protection??0).toString(16).padStart(4,"0")}</b></div><div><span>밸런싱</span><b>0x${(s.balance??0).toString(16)}</b></div>
+    </div><div style="display:grid;gap:4px">${cells.map(bar).join("")||'<span class="hint">셀 값 없음</span>'}</div></div>
+    <div class="btns">
+      <button class="${s.chg_fet?"":"sec"}" onclick="if(confirmFet('충전',${!s.chg_fet}))cmd('${d.slug}','switch','charge_fet','${s.chg_fet?"OFF":"ON"}')">충전 FET ${s.chg_fet?"켜짐":"꺼짐"}</button>
+      <button class="${s.dis_fet?"":"sec"}" onclick="if(confirmFet('방전',${!s.dis_fet}))cmd('${d.slug}','switch','discharge_fet','${s.dis_fet?"OFF":"ON"}')">방전 FET ${s.dis_fet?"켜짐":"꺼짐"}</button>
+    </div></div>`;
+  }
   return `<div class="dev"><b>${esc(d.label)}</b><pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
 }
+let fetArm=null;
+function confirmFet(what,on){const k=what+on;if(fetArm===k){fetArm=null;return true}fetArm=k;$("#live").textContent=`· ${what} FET를 ${on?"켜려면":"끄려면"} 한 번 더 누른다`;setTimeout(()=>{if(fetArm===k)fetArm=null},4000);return false}
 async function status(){
   try{
     const s=await (await fetch("api/status")).json();const y=s.sys;
