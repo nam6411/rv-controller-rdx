@@ -4,6 +4,7 @@ GET  /              페이지
 GET  /api/status    노드·장치 상태
 GET  /api/config    설정 (비밀번호는 비워서)
 PUT  /api/config    설정 저장 → 브리지 파일 갱신(바뀌면 mosquitto 재시작) → rvnode 재시작(systemd가 다시 띄움)
+POST /api/device/{slug}/{switch|control}/{name}   장치 명령 (MQTT …/set과 같은 큐). 본문 = 값 (ON/OFF, PRESS, 선택지)
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ def make_app(node: Node) -> web.Application:
     app.router.add_get("/api/status", _status)
     app.router.add_get("/api/config", _get_config)
     app.router.add_put("/api/config", _put_config)
+    app.router.add_post("/api/device/{slug}/{kind}/{name}", _command)
     return app
 
 
@@ -95,6 +97,20 @@ async def _put_config(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "bridge_changed": bridge_changed, "restart": True})
 
 
+async def _command(request: web.Request) -> web.Response:
+    node: Node = request.app["node"]
+    slug, kind, name = request.match_info["slug"], request.match_info["kind"], request.match_info["name"]
+    dev = next((d for d in node.devices if d.slug == slug), None)
+    if dev is None or kind not in ("switch", "control"):
+        return web.json_response({"ok": False, "error": "그런 장치·명령이 없다"}, status=404)
+    value = (await request.text()).strip() or "PRESS"
+    try:
+        dev.commands.put_nowait((kind, name, value))
+    except asyncio.QueueFull:
+        return web.json_response({"ok": False, "error": "명령 대기열이 꽉 찼다"}, status=503)
+    return web.json_response({"ok": True})
+
+
 async def serve(node: Node) -> None:
     w = node.cfg.web
     runner = web.AppRunner(make_app(node), access_log=None)
@@ -131,8 +147,15 @@ button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:6
 button.sec{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 #msg{font-size:14px}.dev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
 .hint{font-size:12px;color:var(--muted)}
+.sens{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:16px;align-items:start}
+@media (max-width:560px){.sens{grid-template-columns:minmax(0,1fr)}}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.kv div{background:var(--bg);border-radius:6px;padding:6px 8px}.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+.kv span{font-size:12px;color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.btns button{padding:4px 10px;font-size:13px}
 </style></head><body><main>
 <header><h1>rvnode 설정</h1><div class="hint" id="sub"></div></header>
+<section class="card"><h2>센서 <span class="hint" id="live"></span></h2><div id="sensors">불러오는 중…</div></section>
 <section class="card"><h2>상태</h2><div id="status">불러오는 중…</div></section>
 <section class="card"><h2>설정</h2><form id="f"></form>
 <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
@@ -199,17 +222,53 @@ async function save(body){
     setTimeout(async function wait(){try{await fetch("api/status");$("#msg").innerHTML='<span class="on">다시 시작했다.</span>';load();status()}catch(e){setTimeout(wait,1500)}},3000);
   }catch(e){$("#msg").innerHTML=`<span class="off">${esc(e.message)}</span>`}
 }
+const f=(v,d=1)=>v===null||v===undefined?"–":(typeof v==="number"?v.toFixed(d):esc(v));
+async function cmd(slug,kind,name,val){await fetch(`api/device/${slug}/${kind}/${name}`,{method:"POST",body:val||"PRESS"});setTimeout(status,300)}
+function compass(h){
+  if(h===null||h===undefined)return `<svg viewBox="0 0 160 160" width="160" height="160"><circle cx="80" cy="80" r="70" fill="none" stroke="var(--line)" stroke-width="2"/><text x="80" y="86" text-anchor="middle" fill="var(--muted)" font-size="14">나침반 없음</text></svg>`;
+  return `<svg viewBox="0 0 160 160" width="160" height="160"><circle cx="80" cy="80" r="70" fill="none" stroke="var(--line)" stroke-width="2"/>
+  ${["N","E","S","W"].map((t,i)=>`<text x="${80+60*Math.sin(i*Math.PI/2)}" y="${85-60*Math.cos(i*Math.PI/2)}" text-anchor="middle" font-size="13" fill="${i?"var(--muted)":"var(--bad)"}" font-weight="700">${t}</text>`).join("")}
+  <g transform="rotate(${h} 80 80)"><path d="M80 22 L92 84 L80 76 L68 84 Z" fill="var(--accent)"/><path d="M80 138 L90 84 L80 92 L70 84 Z" fill="var(--line)"/></g>
+  <text x="80" y="156" text-anchor="middle" font-size="13" fill="var(--fg)" font-weight="700">${Math.round(h)}°</text></svg>`;
+}
+function sensorCard(d){
+  const s=d.state||{};
+  if(d.type==="gps"){
+    const c=s.compass||{};
+    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${s.fix?"on":"off"}">${s.fix?"위치 잡힘":"위치 없음"}</span> <span class="hint">${esc(s.utc||"")}</span>
+    <div class="sens" style="margin-top:8px"><div class="kv">
+      <div><span>위도</span><b>${f(s.lat,6)}</b></div><div><span>경도</span><b>${f(s.lon,6)}</b></div>
+      <div><span>위성 (사용/보임)</span><b>${s.sats??0} / ${s.sats_seen??0}</b></div><div><span>HDOP</span><b>${f(s.hdop,2)}</b></div>
+      <div><span>속도</span><b>${f(s.speed_kmh)} km/h</b></div><div><span>진행 방향</span><b>${f(s.course,0)}°</b></div>
+      <div><span>고도</span><b>${f(s.alt_m)} m</b></div><div><span>자기장 세기</span><b>${f(c.strength,0)}</b></div>
+    </div><div>${compass(s.heading)}</div></div>
+    <div class="btns"><button class="sec" onclick="cmd('${d.slug}','control','compass_cal_start')">나침반 보정 시작</button>
+    <button class="sec" onclick="cmd('${d.slug}','control','compass_cal_stop')">보정 끝(저장)</button>
+    ${c.calibrating?'<span class="pill on">보정 중 — 차를 한 바퀴 천천히 돌린다</span>':""}</div></div>`;
+  }
+  if(d.type==="birdview"){
+    const i=s.in||{},o=s.out||{};const p=(on,t)=>`<span class="pill ${on?"on":"off"}" style="margin-right:4px">${t}</span>`;
+    return `<div class="dev"><b>${esc(d.label)}</b> ${p(s.powered,s.powered?"전원 켜짐":"전원 꺼짐")} <span class="hint">시점 ${esc(s.view)} · 모드 ${esc(s.mode)}</span>
+    <div style="margin-top:8px">입력 ${p(i.ign,"시동")}${p(i.left,"좌 깜빡이")}${p(i.right,"우 깜빡이")}${p(i.reverse,"후진")}</div>
+    <div style="margin-top:4px">출력 ${p(o.rear,"후방")}${p(o.left_out,"좌측")}${p(o.right_out,"우측")}</div>
+    <div class="btns">${["auto","rear","left","right","none"].map(m=>`<button class="${m===s.mode?"":"sec"}" onclick="cmd('${d.slug}','control','mode','${m}')">${m}</button>`).join("")}
+    <button class="${s.keep_on?"":"sec"}" onclick="cmd('${d.slug}','switch','power','${s.keep_on?"OFF":"ON"}')">계속 켜기 ${s.keep_on?"끄기":"켜기"}</button></div></div>`;
+  }
+  return `<div class="dev"><b>${esc(d.label)}</b><pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
+}
 async function status(){
   try{
     const s=await (await fetch("api/status")).json();const y=s.sys;
     $("#sub").textContent=`${y.hostname} · ${y.ip||"?"} · rvnode ${y.fw}`;
     let h=`<table><tr><td>MQTT</td><td><span class="pill ${s.mqtt_connected?"on":"off"}">${s.mqtt_connected?"연결됨":"끊김"}</span> ${esc(y.mqtt_broker)}</td></tr><tr><td>가동 시간</td><td>${Math.floor(y.uptime_s/60)}분</td></tr><tr><td>CPU 온도</td><td>${y.cpu_temp??"?"}°C</td></tr><tr><td>부하</td><td>${y.load1??"?"}</td></tr></table>`;
-    for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${d.online?"on":"off"}">${d.online?"정상":"오프라인"}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span><pre>${esc(JSON.stringify(d.state,null,2))}</pre></div>`;
+    for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${d.online?"on":"off"}">${d.online?"정상":"오프라인"}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span></div>`;
     $("#status").innerHTML=h;
+    $("#sensors").innerHTML=s.devices.map(sensorCard).join("")||"장치 없음";
+    $("#live").textContent="· "+new Date().toLocaleTimeString();
   }catch(e){$("#status").textContent="연결 안 됨"}
 }
 $("#save").onclick=()=>{try{save(collect())}catch(e){$("#msg").innerHTML=`<span class="off">JSON 칸 오류: ${esc(e.message)}</span>`}};
 $("#saveraw").onclick=()=>{try{save(JSON.parse($("#raw").value))}catch(e){$("#msg").innerHTML=`<span class="off">${esc(e.message)}</span>`}};
 $("#reload").onclick=load;
-load();status();setInterval(status,5000);
+load();status();setInterval(status,1000);
 </script></body></html>"""

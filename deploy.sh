@@ -25,6 +25,10 @@ sudo udevadm control --reload && sudo udevadm trigger
 # 웹 설정이 브리지를 바꾸면 mosquitto만 다시 시작할 수 있게
 echo 'rvnode ALL=(root) NOPASSWD: /usr/bin/systemctl restart mosquitto' | sudo tee /etc/sudoers.d/91-rvnode >/dev/null
 sudo chmod 440 /etc/sudoers.d/91-rvnode
+# gpsd가 GPS(UART4 = /dev/ttyS4, 115200)를 쥔다 — rvnode gps 장치는 2947 소켓만 읽는다 (docs/24 §4.1)
+sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q install gpsd gpsd-clients >/dev/null
+printf '%s\n' 'START_DAEMON="true"' 'USBAUTO="false"' 'DEVICES="/dev/ttyS4"' 'GPSD_OPTIONS="-n -s 115200"' | sudo tee /etc/default/gpsd >/dev/null
+sudo systemctl enable gpsd.socket gpsd >/dev/null 2>&1; sudo systemctl restart gpsd
 EOF
 fi
 

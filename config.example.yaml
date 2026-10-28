@@ -67,6 +67,20 @@ devices:
         left_out:  { chip: gpiochip3, line: 6 }                                      # 핀 38
         right_out: { chip: gpiochip3, line: 5 }                                      # 핀 40
 
+  # GPS(gpsd) + 나침반(QMC5883L) — rv-controller docs/24 §4. gpsd가 /dev/ttyS4를 쥔다 (deploy.sh가 설정)
+  - type: gps
+    slug: gps               # → <base>/gps
+    label: GPS
+    enabled: true
+    params:
+      gpsd: 127.0.0.1:2947
+      compass: true
+      i2c_bus: 5
+      i2c_addr: 0x0D
+      declination: -8.5     # 편각(°, 서편 −)
+      heading_offset: 265   # 화살표 기준 자북 = 265 − 칩 각도 (docs/24 §7.3)
+      cal: { cx: 351, cy: -284, rx: 377, ry: 388 }   # 설치 자리에서 보정 버튼으로 다시 잡는다
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
   # - type: tpms
   #   slug: tpms            # → rv/mach/tpms

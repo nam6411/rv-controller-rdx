@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from ..device import Device
 from .birdview import Birdview
 from .dummy import Dummy
+from .gps import Gps
 
 if TYPE_CHECKING:
     from ..config import DeviceConfig
@@ -15,6 +16,7 @@ if TYPE_CHECKING:
 TYPES: dict[str, type[Device]] = {
     Birdview.type: Birdview,
     Dummy.type: Dummy,
+    Gps.type: Gps,
 }
 
 
