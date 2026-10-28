@@ -26,7 +26,7 @@ rsync -az --delete \
     ./ "$HOST:$DEST/src/"
 
 ssh "$HOST" "sh -eu" <<EOF
-$DEST/venv/bin/pip install --quiet --upgrade $DEST/src
+$DEST/venv/bin/pip install --quiet --upgrade "$DEST/src[board]"
 sudo install -m 644 $DEST/src/systemd/rvnode.service /etc/systemd/system/rvnode.service
 [ -f /etc/rvnode.yaml ] || { sudo install -m 640 -g rvnode $DEST/src/config.example.yaml /etc/rvnode.yaml; echo "edit /etc/rvnode.yaml"; }
 sudo systemctl daemon-reload

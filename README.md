@@ -16,7 +16,8 @@ rvnode/
   node.py       구독, 명령 분배, discovery, sys/cmd·sys/info, 장치 태스크 감시
   ha.py         HA discovery 페이로드 (ESP HaDiscovery.cpp와 같은 모양)
   device.py     장치 기반 클래스 + 엔티티 정의 (Sensor·Switch·Control·Event)
-  devices/      장치 모듈. dummy.py = 하드웨어 없는 본보기
+  gpio.py       GPIO 선 (보드 = libgpiod v2, Mac·테스트 = fake)
+  devices/      장치 모듈. dummy.py = 하드웨어 없는 본보기, birdview.py = 버드뷰 전원·시점
   frames/       프레임 해석 순수 함수 (ESP *Frame.h에서 옮김)
 tests/          pytest
 systemd/        rvnode.service
@@ -39,6 +40,20 @@ python3 -m venv .venv
 
 로컬 브로커로 돌려 보기: `cp config.example.yaml config.yaml`에서 `mqtt.host`를 고친 뒤 `.venv/bin/python -m rvnode -c config.yaml`.
 **집 브로커에 붙일 때는 `node.base`를 `rvtest/...`로 바꿉니다** — `rv/mach`로 두면 ESP `9FCEE4`의 `rv/mach/status`를 덮어씁니다.
+
+## 장치: birdview
+
+rv-controller `docs/18` §12.2 "AVM 켜짐"과 트리거 출력을 맡는다. 설정은 `config.example.yaml`의 `birdview` 블록.
+
+- 입력(옵토 → GPIO, Low = 켜짐): 차 시동(핀 37), 13핀 좌·우 깜빡이(22·28), 후진(32).
+- 출력: 버드뷰 ACC(핀 35), 시점 트리거 후방·좌·우(36·38·40).
+- 전원 = 차 시동 OR `switch.birdview_power` OR 다른 모듈의 `request_power()`(원격 영상 등). 시동을 끄면 `off_delay_s`(기본 30초) 뒤 끈다.
+- 시점(`select.birdview_mode` = auto): 후진 → 후방, 한쪽 깜빡이 → 그쪽(마지막 펄스 뒤 `blink_hold_s` 유지), 비상등·평상시 → 기본 화면.
+- **인터록**: 트리거 전원(J2-1)이 버드뷰 상시 전원이라, 트리거는 핀 35가 켜져 있을 때만 켜고 끌 때는 트리거부터 내린다.
+  데몬이 끝날 때도 트리거 → 전원 순서로 끈다.
+- 보드에서 처음: `gpioinfo`로 핀 35(GPIO3_A4 = gpiochip3/4)·37(GPIO1_A4 = gpiochip1/4)이 맞는지 보고 `enabled: true`.
+  부팅 중 핀 35가 High로 튀지 않는지 본다.
+- 아직 없는 것: GPS로 주행을 판단해 후방으로 바꾸는 규칙(docs/29 §1 결정 5) — gps 모듈이 생기면 붙인다.
 
 ## 장치 모듈 추가
 

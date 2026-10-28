@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..device import Device
+from .birdview import Birdview
 from .dummy import Dummy
 
 if TYPE_CHECKING:
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
     from ..node import Node
 
 TYPES: dict[str, type[Device]] = {
+    Birdview.type: Birdview,
     Dummy.type: Dummy,
 }
 

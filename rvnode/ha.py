@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .device import Control, Device, Event, Sensor, Switch
+from .device import BinarySensor, Control, Device, Event, Sensor, Switch
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,16 @@ def sensor(info: DeviceInfo, dev: Device, s: Sensor) -> dict[str, Any]:
     return _finish(doc, info, dev, s.avail)
 
 
+def binary_sensor(info: DeviceInfo, dev: Device, b: BinarySensor) -> dict[str, Any]:
+    """ESP에는 없던 종류 — 켜짐/꺼짐 입력(시동·깜빡이·후진 …). state JSON의 bool을 ON/OFF로 바꿔 읽는다."""
+    doc = _common(info, dev, "binary_sensor", b.key, b.label)
+    doc["stat_t"] = f"{dev.prefix}/state"
+    doc["val_tpl"] = f"{{{{ 'ON' if value_json.{b.json_path} else 'OFF' }}}}"
+    if b.dev_class:
+        doc["dev_cla"] = b.dev_class
+    return _finish(doc, info, dev, None)
+
+
 def switch(info: DeviceInfo, dev: Device, s: Switch) -> dict[str, Any]:
     doc = _common(info, dev, "switch", s.name, s.label)
     doc["stat_t"] = f"{dev.prefix}/switch/{s.name}/state"
@@ -123,6 +133,8 @@ def all_configs(discovery_prefix: str, info: DeviceInfo, dev: Device) -> list[tu
     out = []
     for s in dev.sensors:
         out.append((config_topic(discovery_prefix, "sensor", info, dev, s.key), sensor(info, dev, s)))
+    for b in dev.binary_sensors:
+        out.append((config_topic(discovery_prefix, "binary_sensor", info, dev, b.key), binary_sensor(info, dev, b)))
     for sw in dev.switches:
         out.append((config_topic(discovery_prefix, "switch", info, dev, sw.name), switch(info, dev, sw)))
     for c in dev.controls:

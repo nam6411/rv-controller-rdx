@@ -35,6 +35,18 @@ class Sensor:
 
 
 @dataclass(frozen=True)
+class BinarySensor:
+    key: str
+    label: str
+    path: str = ""  # state JSON의 bool 경로 (비우면 key)
+    dev_class: str = ""  # HA device_class (power, motion …)
+
+    @property
+    def json_path(self) -> str:
+        return self.path or self.key
+
+
+@dataclass(frozen=True)
 class Switch:
     name: str
     label: str
@@ -67,6 +79,7 @@ class Device:
 
     type: ClassVar[str] = ""
     sensors: ClassVar[tuple[Sensor, ...]] = ()
+    binary_sensors: ClassVar[tuple[BinarySensor, ...]] = ()
     switches: ClassVar[tuple[Switch, ...]] = ()
     controls: ClassVar[tuple[Control, ...]] = ()
     events: ClassVar[tuple[Event, ...]] = ()

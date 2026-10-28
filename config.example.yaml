@@ -31,6 +31,25 @@ devices:
     params:
       interval_s: 5
 
+  # 버드뷰 전원·시점 (rv-controller docs/18 §12.1·§12.2). 칩·라인은 docs/18 §12.1 표 (보드에서 gpioinfo로 한 번 맞춰 본다)
+  - type: birdview
+    slug: birdview          # → rv/mach/birdview (prefix로 바꿀 수 있다)
+    label: Bird view
+    enabled: false          # 보드에서 gpioinfo로 라인을 맞춰 본 뒤 켠다
+    params:
+      backend: gpiod        # Mac 작업대는 fake
+      off_delay_s: 30       # 시동을 끈 뒤 더 켜 둘 시간
+      blink_hold_s: 1.5     # 깜빡이 마지막 펄스 뒤 그쪽 시점 유지
+      pins:
+        ign:       { chip: gpiochip1, line: 4, active_low: true, bias: pull-up }     # 핀 37 GPIO1_A4
+        left:      { chip: gpiochip3, line: 17, active_low: true, bias: pull-up }    # 핀 22
+        right:     { chip: gpiochip4, line: 11, active_low: true }                   # 핀 28 (보드 I2C 풀업이 있다)
+        reverse:   { chip: gpiochip3, line: 18, active_low: true, bias: pull-up }    # 핀 32
+        power:     { chip: gpiochip3, line: 4 }                                      # 핀 35 GPIO3_A4
+        rear:      { chip: gpiochip3, line: 7 }                                      # 핀 36
+        left_out:  { chip: gpiochip3, line: 6 }                                      # 핀 38
+        right_out: { chip: gpiochip3, line: 5 }                                      # 핀 40
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
   # - type: tpms
   #   slug: tpms            # → rv/mach/tpms

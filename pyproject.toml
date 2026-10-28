@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+board = ["gpiod>=2.1"]   # Radxa에서만 (libgpiod v2)
 
 [project.scripts]
 rvnode = "rvnode.app:cli"

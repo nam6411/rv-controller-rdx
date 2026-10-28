@@ -59,6 +59,10 @@ class Node:
         self.exit_code: int | None = None
         self._stop = asyncio.Event()
 
+    def device_by_type(self, type_: str) -> Device | None:
+        """다른 장치를 찾는다 (예: 원격 영상이 버드뷰 전원을 요청)."""
+        return next((d for d in self.devices if d.type == type_), None)
+
     # ---- 구독·명령 ----
 
     def _subscribe_all(self) -> None:
