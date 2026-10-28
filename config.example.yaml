@@ -118,6 +118,17 @@ devices:
         - { mac: "81:ea:ca:23:b9:f4", name: caravan_left, label: Caravan Left Tyre, unit: bar }
         - { mac: "82:ea:ca:33:6c:e7", name: caravan_right, label: Caravan Right Tyre, unit: bar }
 
+  # UVC 캡처 (버드뷰 영상) — 웹에서 '보기'를 누르는 동안만 장치를 연다. MJPEG를 다시 인코딩하지 않는다 (docs/30)
+  - type: video
+    slug: video
+    label: Bird view video
+    discovery: false
+    params:
+      device: /dev/v4l/by-id/usb-MACROSILICON_AFN_CAP-video-index0
+      width: 1280
+      height: 720
+      fps: 10
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
   # - type: jbd
   #   slug: bms

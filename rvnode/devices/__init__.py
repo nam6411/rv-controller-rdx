@@ -11,6 +11,7 @@ from .gps import Gps
 from .jbd import Jbd
 from .mach import Mach
 from .tpms import Tpms
+from .video import Video
 
 if TYPE_CHECKING:
     from ..config import DeviceConfig
@@ -23,6 +24,7 @@ TYPES: dict[str, type[Device]] = {
     Jbd.type: Jbd,
     Mach.type: Mach,
     Tpms.type: Tpms,
+    Video.type: Video,
 }
 
 

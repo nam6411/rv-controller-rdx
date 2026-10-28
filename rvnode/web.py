@@ -5,6 +5,8 @@ GET  /api/status    노드·장치 상태
 GET  /api/config    설정 (비밀번호는 비워서)
 PUT  /api/config    설정 저장 → 브리지 파일 갱신(바뀌면 mosquitto 재시작) → rvnode 재시작(systemd가 다시 띄움)
 POST /api/device/{slug}/{switch|control}/{name}   장치 명령 (MQTT …/set과 같은 큐). 본문 = 값 (ON/OFF, PRESS, 선택지)
+GET  /api/video/{slug}.mjpeg  영상 장치 라이브 (multipart MJPEG — 여는 동안만 캡처한다)
+GET  /api/video/{slug}.jpg    한 장
 """
 
 from __future__ import annotations
@@ -33,6 +35,8 @@ def make_app(node: Node) -> web.Application:
     app.router.add_get("/api/config", _get_config)
     app.router.add_put("/api/config", _put_config)
     app.router.add_post("/api/device/{slug}/{kind}/{name}", _command)
+    app.router.add_get("/api/video/{slug}.mjpeg", _video_stream)
+    app.router.add_get("/api/video/{slug}.jpg", _video_frame)
     return app
 
 
@@ -53,6 +57,34 @@ def _auth(node: Node):
         return await handler(request)
 
     return mw
+
+
+def _video(request: web.Request):
+    node: Node = request.app["node"]
+    d = next((d for d in node.devices if d.slug == request.match_info["slug"] and d.type == "video"), None)
+    if d is None:
+        raise web.HTTPNotFound()
+    return d
+
+
+async def _video_stream(request: web.Request) -> web.StreamResponse:
+    dev = _video(request)
+    resp = web.StreamResponse(headers={"Content-Type": "multipart/x-mixed-replace; boundary=frame",
+                                       "Cache-Control": "no-store"})
+    await resp.prepare(request)
+    try:
+        async for jpg in dev.frames():
+            await resp.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(jpg) + jpg + b"\r\n")
+    except (ConnectionError, asyncio.TimeoutError, asyncio.CancelledError):
+        pass
+    return resp
+
+
+async def _video_frame(request: web.Request) -> web.Response:
+    jpg = await _video(request).snapshot()
+    if jpg is None:
+        raise web.HTTPServiceUnavailable(text="no frame")
+    return web.Response(body=jpg, content_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
 async def _index(request: web.Request) -> web.Response:
@@ -160,6 +192,7 @@ button.sec{background:transparent;color:var(--accent);border:1px solid var(--acc
 .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.btns button{padding:4px 10px;font-size:13px}
 </style></head><body><main>
 <header><h1>rvnode 설정</h1><div class="hint" id="sub"></div></header>
+<section class="card" id="videocard" hidden><h2>영상 <span class="hint" id="vinfo"></span></h2><div class="btns"><button id="vbtn">보기</button><button class="sec" id="vsnap">한 장</button></div><img id="vimg" alt="" style="display:none;width:100%;max-width:960px;margin-top:8px;border-radius:6px;background:#000"></section>
 <section class="card"><h2>센서 <span class="hint" id="live"></span></h2><div id="sensors">불러오는 중…</div></section>
 <section class="card"><h2>상태</h2><div id="status">불러오는 중…</div></section>
 <section class="card"><h2>설정</h2><form id="f"></form>
@@ -303,6 +336,9 @@ function sensorCard(d){
     <div class="btns">모드 ${opts("ac_mode",ac.mode,["off","fan","cool","heat","auto"],cok)}</div>
     <div class="btns">바람 ${opts("ac_fan",ac.fan,["low","mid","high","night"],cok)}</div></div>`;
   }
+  if(d.type==="video"){
+    return `${head(d)} <span class="pill ${s.capturing?"on":"off"}">${s.capturing?"캡처 중":"대기"}</span> <span class="hint">${esc(s.device||"")} · ${s.width||"?"}×${s.height||"?"} · ${f(s.fps,1)} fps · 보는 사람 ${s.viewers??0}${s.frame_bytes?" · 프레임 "+Math.round(s.frame_bytes/1024)+" KB":""}${s.error?" · "+esc(s.error):""}</span></div>`;
+  }
   if(d.type==="tpms"){
     const names=Object.keys(s).filter(k=>s[k]&&typeof s[k]==="object"&&"mac" in s[k]&&!Array.isArray(s[k]));
     const tyre=k=>{const t=s[k];const ago=t.age_s===undefined?"수신 없음":t.age_s<60?`${t.age_s}초 전`:`${Math.floor(t.age_s/60)}분 전`;
@@ -325,11 +361,17 @@ async function status(){
     for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${conn(d)[0]}">${conn(d)[1]}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span></div>`;
     $("#status").innerHTML=h;
     $("#sensors").innerHTML=s.devices.map(sensorCard).join("")||"장치 없음";
+    const v=s.devices.find(d=>d.type==="video"&&d.enabled!==false);$("#videocard").hidden=!v;vslug=v?v.slug:null;
     $("#live").textContent="· "+new Date().toLocaleTimeString();
   }catch(e){$("#status").textContent="연결 안 됨"}
 }
 $("#save").onclick=()=>{try{save(collect())}catch(e){$("#msg").innerHTML=`<span class="off">JSON 칸 오류: ${esc(e.message)}</span>`}};
 $("#saveraw").onclick=()=>{try{save(JSON.parse($("#raw").value))}catch(e){$("#msg").innerHTML=`<span class="off">${esc(e.message)}</span>`}};
 $("#reload").onclick=load;
+let vslug=null;
+function vstop(){$("#vimg").src="";$("#vimg").style.display="none";$("#vbtn").textContent="보기"}
+$("#vbtn").onclick=()=>{if(!vslug)return;if($("#vimg").style.display==="none"){$("#vimg").src=`api/video/${vslug}.mjpeg?t=${Date.now()}`;$("#vimg").style.display="";$("#vbtn").textContent="멈춤"}else vstop()};
+$("#vsnap").onclick=()=>{if(!vslug)return;vstop();$("#vimg").src=`api/video/${vslug}.jpg?t=${Date.now()}`;$("#vimg").style.display=""};
+document.addEventListener("visibilitychange",()=>{if(document.hidden)vstop()});  // 탭을 숨기면 캡처를 놓는다
 load();status();setInterval(status,1000);
 </script></body></html>"""
