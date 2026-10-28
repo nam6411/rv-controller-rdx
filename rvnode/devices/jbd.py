@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from ..ble import connect_lock
 from ..device import Device, Sensor, Switch
 from ..frames import jbd
 
@@ -81,6 +82,10 @@ class Jbd(Device):
         self._rx_event.set()
 
     async def _connect(self) -> None:
+        async with connect_lock:
+            await self._connect_locked()
+
+    async def _connect_locked(self) -> None:
         from bleak import BleakClient, BleakScanner
 
         if self.address:

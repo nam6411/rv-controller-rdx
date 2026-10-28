@@ -4,9 +4,7 @@ KeyboardOnly 능력으로 등록하고 BlueZ가 묻는 passkey에 설정한 PIN�
 다음부터는 묻지 않는다. Linux(BlueZ + D-Bus)에서만 쓴다 — bleak가 이미 dbus-fast를 끌어온다.
 """
 
-from __future__ import annotations
-
-import logging
+import logging  # from __future__ annotations를 쓰면 dbus-fast가 시그니처를 못 읽는다
 
 log = logging.getLogger("rvnode.bluez")
 
@@ -28,7 +26,7 @@ async def ensure_agent(pin: int) -> None:
             self.passkey = passkey
 
         @method()
-        def Release(self) -> None:  # noqa: N802
+        def Release(self):  # noqa: N802
             pass
 
         @method()
@@ -42,27 +40,27 @@ async def ensure_agent(pin: int) -> None:
             return self.passkey
 
         @method()
-        def DisplayPasskey(self, device: "o", passkey: "u", entered: "q") -> None:  # noqa: F821, N802
+        def DisplayPasskey(self, device: "o", passkey: "u", entered: "q"):  # noqa: F821, N802
             pass
 
         @method()
-        def DisplayPinCode(self, device: "o", pincode: "s") -> None:  # noqa: F821, N802
+        def DisplayPinCode(self, device: "o", pincode: "s"):  # noqa: F821, N802
             pass
 
         @method()
-        def RequestConfirmation(self, device: "o", passkey: "u") -> None:  # noqa: F821, N802
+        def RequestConfirmation(self, device: "o", passkey: "u"):  # noqa: F821, N802
             pass
 
         @method()
-        def RequestAuthorization(self, device: "o") -> None:  # noqa: F821, N802
+        def RequestAuthorization(self, device: "o"):  # noqa: F821, N802
             pass
 
         @method()
-        def AuthorizeService(self, device: "o", uuid: "s") -> None:  # noqa: F821, N802
+        def AuthorizeService(self, device: "o", uuid: "s"):  # noqa: F821, N802
             pass
 
         @method()
-        def Cancel(self) -> None:  # noqa: N802
+        def Cancel(self):  # noqa: N802
             pass
 
     bus = await MessageBus(bus_type=BusType.SYSTEM).connect()

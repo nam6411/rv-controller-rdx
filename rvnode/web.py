@@ -61,11 +61,16 @@ async def _index(request: web.Request) -> web.Response:
 
 async def _status(request: web.Request) -> web.Response:
     node: Node = request.app["node"]
-    devices = [
-        {"slug": d.slug, "type": d.type, "label": d.label, "prefix": d.prefix, "online": d.online,
-         "last_error": d.last_error, "state": d.state()}
-        for d in node.devices
-    ]
+    running = {d.slug: d for d in node.devices}
+    devices = []
+    for c in node.cfg.devices:  # 설정에서 꺼 둔 장치도 카드는 보인다 (값 없이)
+        d = running.get(c.slug)
+        if d is None:
+            devices.append({"slug": c.slug, "type": c.type, "label": c.label or c.slug, "prefix": c.prefix,
+                            "enabled": False, "online": False, "last_error": "", "state": {}})
+        else:
+            devices.append({"slug": d.slug, "type": d.type, "label": d.label, "prefix": d.prefix, "enabled": True,
+                            "online": d.online, "last_error": d.last_error, "state": d.state()})
     return web.json_response({"sys": node.sys_info(), "mqtt_connected": node.bus.connected, "devices": devices})
 
 
@@ -145,7 +150,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}td{border-bottom:1px so
 pre{margin:6px 0 0;font-size:12px;overflow:auto;max-height:240px;background:var(--bg);padding:8px;border-radius:6px}
 button{font:inherit;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer}
 button.sec{background:transparent;color:var(--accent);border:1px solid var(--accent)}
-#msg{font-size:14px}.dev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+#msg{font-size:14px}.dev{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.dev.offline .kv,.dev.offline .btns{opacity:.45}.dev.offline button{pointer-events:none}
 .hint{font-size:12px;color:var(--muted)}
 .sens{display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:16px;align-items:start}
 @media (max-width:560px){.sens{grid-template-columns:minmax(0,1fr)}}
@@ -231,11 +236,13 @@ function compass(h){
   <g transform="rotate(${h} 80 80)"><path d="M80 22 L92 84 L80 76 L68 84 Z" fill="var(--accent)"/><path d="M80 138 L90 84 L80 92 L70 84 Z" fill="var(--line)"/></g>
   <text x="80" y="156" text-anchor="middle" font-size="13" fill="var(--fg)" font-weight="700">${Math.round(h)}°</text></svg>`;
 }
+function conn(d){return d.enabled===false?["off","설정에서 꺼짐"]:d.online?["on","연결됨"]:["off","연결 안 됨"]}
+function head(d){const [c,t]=conn(d);return `<div class="dev ${d.online?"":"offline"}"><b>${esc(d.label)}</b> <span class="pill ${c}">${t}</span>`}
 function sensorCard(d){
-  const s=d.state||{};
+  const s=d.online?(d.state||{}):{ble:(d.state||{}).ble};  // 연결 안 되면 지난 값 대신 –
   if(d.type==="gps"){
     const c=s.compass||{};
-    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${s.fix?"on":"off"}">${s.fix?"위치 잡힘":"위치 없음"}</span> <span class="hint">${esc(s.utc||"")}</span>
+    return `${head(d)} <span class="pill ${s.fix?"on":"off"}">${s.fix?"위치 잡힘":"위치 없음"}</span> <span class="hint">${esc(s.utc||"")}</span>
     <div class="sens" style="margin-top:8px"><div class="kv">
       <div><span>위도</span><b>${f(s.lat,6)}</b></div><div><span>경도</span><b>${f(s.lon,6)}</b></div>
       <div><span>위성 (사용/보임)</span><b>${s.sats??0} / ${s.sats_seen??0}</b></div><div><span>HDOP</span><b>${f(s.hdop,2)}</b></div>
@@ -248,7 +255,7 @@ function sensorCard(d){
   }
   if(d.type==="birdview"){
     const i=s.in||{},o=s.out||{};const p=(on,t)=>`<span class="pill ${on?"on":"off"}" style="margin-right:4px">${t}</span>`;
-    return `<div class="dev"><b>${esc(d.label)}</b> ${p(s.powered,s.powered?"전원 켜짐":"전원 꺼짐")} <span class="hint">시점 ${esc(s.view)} · 모드 ${esc(s.mode)}</span>
+    return `${head(d)} ${p(s.powered,s.powered?"전원 켜짐":"전원 꺼짐")} <span class="hint">시점 ${esc(s.view)} · 모드 ${esc(s.mode)}</span>
     <div style="margin-top:8px">입력 ${p(i.ign,"시동")}${p(i.left,"좌 깜빡이")}${p(i.right,"우 깜빡이")}${p(i.reverse,"후진")}</div>
     <div style="margin-top:4px">출력 ${p(o.rear,"후방")}${p(o.left_out,"좌측")}${p(o.right_out,"우측")}</div>
     <div class="btns">${["auto","rear","left","right","none"].map(m=>`<button class="${m===s.mode?"":"sec"}" onclick="cmd('${d.slug}','control','mode','${m}')">${m}</button>`).join("")}
@@ -259,7 +266,7 @@ function sensorCard(d){
     const bar=v=>{const pct=Math.max(0,Math.min(100,(v-2.8)/(3.65-2.8)*100));const hi=cells.length>1&&v===mx,lo=cells.length>1&&v===mn;
       return `<div style="display:grid;grid-template-columns:52px 1fr 64px;gap:6px;align-items:center;font-size:13px"><span class="hint">${cells.indexOf(v)+1}</span><div style="background:var(--bg);border-radius:4px;height:12px"><div style="width:${pct}%;height:12px;border-radius:4px;background:${hi?"var(--bad)":lo?"var(--muted)":"var(--accent)"}"></div></div><b style="font-variant-numeric:tabular-nums">${v.toFixed(3)} V</b></div>`};
     const cur=s.current??0;
-    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${b.connected?"on":"off"}">${b.connected?"BLE 연결":"BLE 끊김"}</span> <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
+    return `${head(d)} <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
     <div class="sens" style="margin-top:8px"><div class="kv">
       <div><span>SOC</span><b>${f(s.soc,0)} %</b></div><div><span>전압</span><b>${f(s.pack_v,2)} V</b></div>
       <div><span>전류 (${cur>0?"충전":cur<0?"방전":"대기"})</span><b>${f(s.current,2)} A</b></div><div><span>전력</span><b>${f(s.power,0)} W</b></div>
@@ -278,7 +285,7 @@ function sensorCard(d){
     const opts=(n,cur,list,ok)=>list.map(o=>`<button class="${o===cur?"":"sec"}" ${ok?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${o}')">${o}</button>`).join("");
     const step=(n,v,dv,lo,hi,ok)=>`<button class="sec" ${ok&&v>lo?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${v-dv}')">−</button><button class="sec" ${ok&&v<hi?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${v+dv}')">+</button>`;
     const cur=e.bat_a??0,aok=live&&a.set!==undefined,cok=!!ac.ok;
-    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${b.connected?"on":"off"}">${b.connected?"BLE 연결":"BLE 끊김"}</span> <span class="pill ${live?"on":"off"}">${live?"패널 켜짐":"패널 꺼짐"}</span> <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
+    return `${head(d)} <span class="pill ${live?"on":"off"}">${live?"패널 켜짐":"패널 꺼짐"}</span> <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
     <div class="kv" style="margin-top:8px">
       <div><span>배터리 SOC (전압)</span><b>${f(e.soc,0)} %</b></div><div><span>전압</span><b>${f(e.bat_v,2)} V</b></div>
       <div><span>전류 (${cur>0?"충전":cur<0?"방전":"대기"})</span><b>${f(e.bat_a,2)} A</b></div><div><span>전력</span><b>${f(e.bat_w,0)} W</b></div>
@@ -296,7 +303,7 @@ function sensorCard(d){
     <div class="btns">모드 ${opts("ac_mode",ac.mode,["off","fan","cool","heat","auto"],cok)}</div>
     <div class="btns">바람 ${opts("ac_fan",ac.fan,["low","mid","high","night"],cok)}</div></div>`;
   }
-  return `<div class="dev"><b>${esc(d.label)}</b><pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
+  return `${head(d)}<pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
 }
 let fetArm=null;
 function confirmFet(what,on){const k=what+on;if(fetArm===k){fetArm=null;return true}fetArm=k;$("#live").textContent=`· ${what} FET를 ${on?"켜려면":"끄려면"} 한 번 더 누른다`;setTimeout(()=>{if(fetArm===k)fetArm=null},4000);return false}
@@ -305,7 +312,7 @@ async function status(){
     const s=await (await fetch("api/status")).json();const y=s.sys;
     $("#sub").textContent=`${y.hostname} · ${y.ip||"?"} · rvnode ${y.fw}`;
     let h=`<table><tr><td>MQTT</td><td><span class="pill ${s.mqtt_connected?"on":"off"}">${s.mqtt_connected?"연결됨":"끊김"}</span> ${esc(y.mqtt_broker)}</td></tr><tr><td>가동 시간</td><td>${Math.floor(y.uptime_s/60)}분</td></tr><tr><td>CPU 온도</td><td>${y.cpu_temp??"?"}°C</td></tr><tr><td>부하</td><td>${y.load1??"?"}</td></tr></table>`;
-    for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${d.online?"on":"off"}">${d.online?"정상":"오프라인"}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span></div>`;
+    for(const d of s.devices)h+=`<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${conn(d)[0]}">${conn(d)[1]}</span> <span class="hint">${esc(d.prefix)}${d.last_error?" · "+esc(d.last_error):""}</span></div>`;
     $("#status").innerHTML=h;
     $("#sensors").innerHTML=s.devices.map(sensorCard).join("")||"장치 없음";
     $("#live").textContent="· "+new Date().toLocaleTimeString();
