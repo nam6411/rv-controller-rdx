@@ -91,6 +91,21 @@ devices:
       ble_address: "A4:C1:37:19:9C:10"
       interval_s: 5
 
+  # Adria MACH-BASIC (BLE NUS, PIN 페어링) — ESP mach와 같은 키. ESP에서 넘겨받으면 slug: mach, prefix: rv/mach
+  - type: mach
+    slug: mach
+    label: MACH
+    enabled: false          # 실차에서 켠다. ESP mach 모듈과 동시에 켜지 않는다 (둘 다 9FCEE4_mach_*)
+    params:
+      name: MACH-BASIC      # address를 비우면 이 이름으로 찾는다
+      address: ""
+      pin: 123456
+      interval_s: 3
+      ebl: { enabled: true, lin: 2 }
+      alde: { enabled: true, lin: 1 }
+      aventa: { enabled: true, lin: 1, model: comfort, on_mode: auto, default_set_c: 22 }
+      level: { pitch_axis: z, pitch_sign: -1, roll_axis: y, roll_sign: 1, pitch_offset: 0, roll_offset: 0 }
+
   # 아래는 장치 모듈이 생기면 켠다 (docs/29 §5 순서)
   # - type: tpms
   #   slug: tpms            # → rv/mach/tpms
@@ -100,7 +115,3 @@ devices:
   #   prefix: rv/bms
   #   label: BMS
   #   params: { mac: "A5:C2:37:..." }
-  # - type: mach
-  #   slug: mach            # → rv/mach
-  #   label: MACH
-  #   params: { mac: "...", pin: 123456 }

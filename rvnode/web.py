@@ -272,6 +272,30 @@ function sensorCard(d){
       <button class="${s.dis_fet?"":"sec"}" onclick="if(confirmFet('방전',${!s.dis_fet}))cmd('${d.slug}','switch','discharge_fet','${s.dis_fet?"OFF":"ON"}')">방전 FET ${s.dis_fet?"켜짐":"꺼짐"}</button>
     </div></div>`;
   }
+  if(d.type==="mach"){
+    const b=s.ble||{},e=s.ebl||{},a=s.alde||{},ac=s.ac||{},g=s.accel||{},live=!!s.live;
+    const sw=(n,on,t,ok=live)=>`<button class="${on?"":"sec"}" ${ok?"":"disabled"} onclick="cmd('${d.slug}','switch','${n}','${on?"OFF":"ON"}')">${t} ${on?"켜짐":"꺼짐"}</button>`;
+    const opts=(n,cur,list,ok)=>list.map(o=>`<button class="${o===cur?"":"sec"}" ${ok?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${o}')">${o}</button>`).join("");
+    const step=(n,v,dv,lo,hi,ok)=>`<button class="sec" ${ok&&v>lo?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${v-dv}')">−</button><button class="sec" ${ok&&v<hi?"":"disabled"} onclick="cmd('${d.slug}','control','${n}','${v+dv}')">+</button>`;
+    const cur=e.bat_a??0,aok=live&&a.set!==undefined,cok=!!ac.ok;
+    return `<div class="dev"><b>${esc(d.label)}</b> <span class="pill ${b.connected?"on":"off"}">${b.connected?"BLE 연결":"BLE 끊김"}</span> <span class="pill ${live?"on":"off"}">${live?"패널 켜짐":"패널 꺼짐"}</span> <span class="hint">${esc(b.name||"")} ${esc(b.address||"")}${d.last_error?" · "+esc(d.last_error):""}</span>
+    <div class="kv" style="margin-top:8px">
+      <div><span>배터리 SOC (전압)</span><b>${f(e.soc,0)} %</b></div><div><span>전압</span><b>${f(e.bat_v,2)} V</b></div>
+      <div><span>전류 (${cur>0?"충전":cur<0?"방전":"대기"})</span><b>${f(e.bat_a,2)} A</b></div><div><span>전력</span><b>${f(e.bat_w,0)} W</b></div>
+      <div><span>청수 / 오수</span><b>${f(e.fresh,0)} / ${f(e.waste,0)} %</b></div><div><span>실내 / 실외 (EBL)</span><b>${f(e.inside,0)} / ${f(e.outside,0)} °C</b></div>
+      <div><span>230V / 엔진</span><b>${e.mains?"연결":"없음"} / ${e.engine?"가동":"정지"}</b></div>
+      <div><span>수평 앞뒤</span><b style="font-size:15px">${esc(g.pitch_text||"–")}</b></div><div><span>수평 좌우</span><b style="font-size:15px">${esc(g.roll_text||"–")}</b></div>
+    </div>
+    <div class="btns">${sw("panel",e.panel,"메인 패널",!!b.connected)}${sw("int_light",e.int_light,"실내등")}${sw("ext_light",e.ext_light,"외부등")}${sw("water_pump",e.pump,"물펌프")}</div>
+    <div style="margin-top:10px"><b>Alde 보일러</b> <span class="hint">실내 ${f(a.sofa,0)}°C · 실외 ${f(a.outside,0)}°C${a.heating?" · 가열 중":""}${a.error?" · 오류":""}</span></div>
+    <div class="btns">${sw("heater",a.gas,"가스",aok)} 설정 <b>${f(a.set,0)}°C</b> ${step("alde_set_temp",a.set??20,1,5,30,aok)}</div>
+    <div class="btns">에너지 ${opts("alde_energy",a.energy,["off","gas","el1","el2","el3","el1_and_gas","el2_and_gas","el3_and_gas"],aok)}</div>
+    <div class="btns">온수 ${opts("alde_water",a.water_text,["off","normal","boost"],aok)}</div>
+    <div style="margin-top:10px"><b>에어컨</b> <span class="hint">${cok?`실내 ${f(ac.room_c,1)}°C · 설정 ${f(ac.set_c,0)}°C`:"응답 없음 (230V 필요)"+(ac.reply?" · "+esc(ac.reply):"")}</span></div>
+    <div class="btns">${sw("ac",cok&&ac.mode!=="off","에어컨",cok)} 설정 ${step("ac_set_temp",Math.round(ac.set_c??22),1,16,31,cok)}</div>
+    <div class="btns">모드 ${opts("ac_mode",ac.mode,["off","fan","cool","heat","auto"],cok)}</div>
+    <div class="btns">바람 ${opts("ac_fan",ac.fan,["low","mid","high","night"],cok)}</div></div>`;
+  }
   return `<div class="dev"><b>${esc(d.label)}</b><pre>${esc(JSON.stringify(s,null,2))}</pre></div>`;
 }
 let fetArm=null;
