@@ -1,0 +1,353 @@
+<title>AVM ACC OR 회로</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 도면 한 장: 위에 회로도(A안), 그 아래 릴레이 B안, 판단 규칙·부품, 기판 수정. Radxa 쪽은 청록, 차 쪽은 자주, 주의는 호박색 */
+:root{
+  --bg:#f4f6f5; --sheet:#ffffff; --ink:#1b2220; --muted:#5d6b67; --line:#d5dcd9;
+  --new:#0b7a70; --new-soft:#0b7a7018; --car:#9b2c7c; --car-soft:#9b2c7c14; --warn:#b25a06; --warn-soft:#b25a0618; --wire:#1b2220;
+  --sans:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1312; --sheet:#161c1a; --ink:#dde5e2; --muted:#93a29d; --line:#2a3431;
+  --new:#3fd0bf; --new-soft:#3fd0bf1f; --car:#e77ac8; --car-soft:#e77ac81a; --warn:#f2a33a; --warn-soft:#f2a33a1f; --wire:#dde5e2; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1312; --sheet:#161c1a; --ink:#dde5e2; --muted:#93a29d; --line:#2a3431;
+  --new:#3fd0bf; --new-soft:#3fd0bf1f; --car:#e77ac8; --car-soft:#e77ac81a; --warn:#f2a33a; --warn-soft:#f2a33a1f; --wire:#dde5e2; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6}
+.wrap{max-width:1100px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+header{display:grid;gap:6px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-size:26px;line-height:1.25;margin:0;text-wrap:balance;font-weight:700}
+h2{font-size:17px;margin:0;font-weight:700;text-wrap:balance}
+p{margin:0;max-width:72ch}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:20px;display:grid;gap:14px;min-width:0}
+.scroll{overflow-x:auto}
+svg text{font-family:var(--sans);fill:var(--ink)}
+svg .mono{font-family:var(--mono)}
+svg .muted{fill:var(--muted)}
+svg .new{fill:var(--new)}
+svg .car{fill:var(--car)}
+svg .warn{fill:var(--warn)}
+.w{stroke:var(--wire);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.wn{stroke:var(--new);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.wc{stroke:var(--car);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.iso{stroke:var(--muted);stroke-width:1.2;stroke-dasharray:5 5;fill:none}
+.dot{fill:var(--wire)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:22px;height:0;border-top:2px solid var(--wire)}
+.sw.n{border-color:var(--new)}
+.sw.c{border-color:var(--car)}
+.sw.d{border-top:2px dashed var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500}
+td.m,code{font-family:var(--mono);font-size:13px}
+.hi{color:var(--new);font-weight:500}
+ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
+.warnbox{border-left:3px solid var(--warn);background:var(--warn-soft);padding:12px 14px;border-radius:0 6px 6px 0;display:grid;gap:6px}
+.note{font-size:13px;color:var(--muted)}
+.pb text{font-family:var(--mono);font-size:12px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">rv-controller · docs/18 §12.2 AVM 켜짐 · 2026-10-25 확정</div>
+    <h1>AVM 켜짐 회로</h1>
+    <p>차 시동 12V는 옵토(U8)로 절연해 Radxa 핀 37로 읽는다. 버드뷰를 켤지는 rvnode가 정하고, 핀 35로 옵토(U7)를 켜면 U7이 J2의 AVM_12V(버드뷰 상시 전원)를 ACC_IN에 넘긴다. 견인차 GND(G13)는 U8 LED 쪽에만 닿는다. 부품은 모두 베이스보드 위에 더한다. 하네스는 단자박스(BC-ABB-S10PT) 안의 10P 단자대 TB1에서 5+5로 받아 J2·J3로 넘긴다.</p>
+  </header>
+
+  <section class="sheet">
+    <h2>회로 — 입력 옵토 하나, 출력 옵토 하나</h2>
+    <div class="legend">
+      <span><i class="sw"></i>카라반 12V·GND 쪽</span>
+      <span><i class="sw n"></i>Radxa 쪽</span>
+      <span><i class="sw c"></i>견인차 쪽</span>
+      <span><i class="sw d"></i>옵토 절연 경계</span>
+    </div>
+    <div class="scroll">
+    <svg viewBox="0 0 1060 470" width="1060" height="470" role="img" aria-label="차 시동 12V가 U8을 거쳐 Radxa 핀 37로 들어가고, Radxa 핀 35가 U7을 켜서 카라반 상시 12V를 버드뷰 ACC_IN에 넘긴다">
+      <defs>
+        <marker id="arrN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--new)"/></marker>
+        <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--car)"/></marker>
+      </defs>
+
+      <!-- Radxa -->
+      <rect x="40" y="120" width="150" height="290" rx="4" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="115" y="108" text-anchor="middle" font-weight="700" font-size="14">Radxa</text>
+      <text x="115" y="230" text-anchor="middle" class="muted" font-size="12">rvnode가</text>
+      <text x="115" y="246" text-anchor="middle" class="muted" font-size="12">켤지 정한다</text>
+      <text x="180" y="155" text-anchor="end" class="mono" font-size="12">SIG #35</text>
+      <text x="180" y="290" text-anchor="end" class="mono" font-size="12">GND #39</text>
+      <text x="180" y="335" text-anchor="end" class="mono" font-size="12">IN #37</text>
+      <text x="180" y="351" text-anchor="end" class="muted" font-size="11">내부 풀업</text>
+      <circle cx="190" cy="160" r="3.5" class="dot"/><circle cx="190" cy="275" r="3.5" class="dot"/><circle cx="190" cy="340" r="3.5" class="dot"/>
+
+      <!-- 출력: R21 → U7 -->
+      <path class="wn" d="M190 160H230M280 160H330"/>
+      <rect x="230" y="151" width="50" height="18" rx="2" fill="var(--sheet)" stroke="var(--new)" stroke-width="2"/>
+      <text x="255" y="143" text-anchor="middle" class="new mono" font-size="12">R21 330Ω</text>
+      <path class="wn" d="M330 215H300V395H330M190 275H300"/>
+      <circle cx="300" cy="275" r="3.5" fill="var(--new)"/>
+      <text x="245" y="296" text-anchor="middle" class="muted" font-size="11">High → 켬</text>
+
+      <rect x="330" y="130" width="140" height="110" rx="4" fill="var(--new-soft)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="400" y="122" text-anchor="middle" font-weight="700" font-size="13">U7 PC817 · 출력</text>
+      <text x="337" y="150" class="mono muted" font-size="11">1 A</text><text x="337" y="233" class="mono muted" font-size="11">2 K</text>
+      <text x="463" y="150" text-anchor="end" class="mono muted" font-size="11">4 C</text><text x="463" y="233" text-anchor="end" class="mono muted" font-size="11">3 E</text>
+      <path class="wn" d="M330 160H368V180M368 200V215H330"/>
+      <path d="M356 180H380L368 200Z" fill="var(--new)"/><path class="wn" d="M356 200H380"/>
+      <path class="wn" d="M386 185L403 191" marker-end="url(#arrN)"/><path class="wn" d="M386 196L403 202" marker-end="url(#arrN)"/>
+      <path class="iso" d="M400 128V244"/>
+      <path class="w" d="M424 174V214M424 184L448 168V160H470M424 204L448 220H470"/>
+      <path d="M440 214L448 220L438.6 221.4Z" fill="var(--wire)"/>
+
+      <!-- 입력: U8 (왼쪽 = 트랜지스터, 오른쪽 = LED) -->
+      <rect x="330" y="310" width="140" height="110" rx="4" fill="var(--car-soft)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="400" y="440" text-anchor="middle" font-weight="700" font-size="13">U8 PC817 · 입력</text>
+      <text x="337" y="330" class="mono muted" font-size="11">4 C</text><text x="337" y="413" class="mono muted" font-size="11">3 E</text>
+      <text x="463" y="330" text-anchor="end" class="mono muted" font-size="11">1 A</text><text x="463" y="413" text-anchor="end" class="mono muted" font-size="11">2 K</text>
+      <path class="wn" d="M330 340H352L376 356M376 384L352 400V395H330M376 352V388"/>
+      <path class="wn" d="M352 340V340"/>
+      <path d="M358 397L352 400L355.6 393Z" fill="var(--new)"/>
+      <path class="iso" d="M400 300V430"/>
+      <path class="wc" d="M470 340H432V360M432 380V395H470"/>
+      <path d="M420 360H444L432 380Z" fill="var(--car)"/><path class="wc" d="M420 380H444"/>
+      <path class="wc" d="M414 365L397 371" marker-end="url(#arrC)"/><path class="wc" d="M414 376L397 382" marker-end="url(#arrC)"/>
+      <path class="wn" d="M190 340H330"/>
+
+      <!-- 차 쪽 -->
+      <circle cx="495" cy="340" r="3.5" fill="var(--car)"/><circle cx="495" cy="395" r="3.5" fill="var(--car)"/>
+      <path class="wc" d="M495 340V358M495 380V395"/>
+      <path d="M484 380H506L495 358Z" fill="var(--car)"/><path class="wc" d="M484 358H506"/>
+      <text x="512" y="373" class="car mono" font-size="11">D5</text>
+      <path class="wc" d="M470 340H540M590 340H620M660 340H713M470 395H713"/>
+      <rect x="540" y="331" width="50" height="18" rx="2" fill="var(--sheet)" stroke="var(--car)" stroke-width="2"/>
+      <text x="565" y="323" text-anchor="middle" class="car mono" font-size="12">R23 3.3kΩ</text>
+      <rect x="620" y="331" width="40" height="18" rx="2" fill="var(--sheet)" stroke="var(--car)" stroke-width="2"/>
+      <path class="wc" d="M622 340H658" stroke-width="1"/>
+      <text x="640" y="323" text-anchor="middle" class="car mono" font-size="12">F3 0.5A (하네스)</text>
+      <text x="565" y="366" text-anchor="middle" class="muted" font-size="11">LED 약 3~4mA</text>
+      <circle cx="720" cy="340" r="7" fill="var(--sheet)" stroke="var(--car)" stroke-width="2"/>
+      <text x="735" y="345" font-weight="700" font-size="13" class="car">J3 CAR ← TB1-6 · 차 시동 12V</text>
+      <circle cx="720" cy="395" r="7" fill="var(--sheet)" stroke="var(--car)" stroke-width="2"/>
+      <text x="735" y="400" font-weight="700" font-size="13" class="car">G13 (J3 ← TB1-10)</text>
+      <text x="735" y="418" class="muted" font-size="11">13핀 3번 — 차 시동선의 귀환으로 같이 씀</text>
+
+      <!-- U7 출력 → 카라반 12V, ACC_IN -->
+      <path class="w" d="M470 160H560V52"/>
+      <circle cx="560" cy="45" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="576" y="40" font-weight="700" font-size="13">AVM_12V (J2-1 ← TB1-1)</text>
+      <text x="576" y="58" class="muted" font-size="12">버드뷰 상시 전원(BATT) — ACC선 아님</text>
+      <path class="w" d="M470 220H953"/>
+      <circle cx="880" cy="220" r="4" class="dot"/>
+      <path class="w" d="M880 220V240M880 290V305"/>
+      <rect x="871" y="240" width="18" height="50" rx="2" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="862" y="262" text-anchor="end" class="mono" font-size="12">R22</text><text x="862" y="278" text-anchor="end" class="mono" font-size="12">47kΩ</text>
+      <path class="w" d="M862 305H898M868 313H892M874 321H886"/>
+      <text x="880" y="340" text-anchor="middle" class="muted" font-size="12">GND</text>
+      <circle cx="960" cy="220" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="1040" y="182" text-anchor="end" font-weight="700" font-size="13">버드뷰 ACC_IN</text>
+      <text x="1040" y="200" text-anchor="end" class="muted" font-size="12">J2 ACC → TB1-5 → JP5 9번</text>
+      <text x="1040" y="248" text-anchor="end" class="muted" font-size="11">켜짐 ≈ 11.8V</text>
+    </svg>
+    </div>
+    <p class="note">U8은 베이스보드 13핀 입력(U4~U6: 2.2kΩ + 역병렬 1N4148)과 같은 꼴이다. 시동이 켜지면 U8이 켜져 핀 37이 Low가 된다. U7의 PC817 출력이 "릴레이 접점" 노릇을 하고, ACC_IN 전류는 버드뷰 상시 전원에서만 나온다. J2-1이 버드뷰 ACC선에서 따여 있으면 ACC를 ACC로 켜는 꼴이 되므로 반드시 상시(BATT)선이어야 한다.</p>
+  </section>
+
+  <section class="sheet">
+    <h2>단자박스 TB1 — BC-ABB-S10PT 내장 10P, 5+5</h2>
+    <p>하네스는 단자박스 안의 10P 계단형 단자대(TB1)에서 받는다. 1~5는 버드뷰 묶음으로 J2에, 6~10은 견인차 묶음으로 J3에 간다. 자리 순서는 J2·J3 플러그 순서(왼쪽부터)와 같다. TB1에서 판까지는 5심 선 두 가닥이다.</p>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 420" width="1000" height="420" role="img" aria-label="하네스 10가닥이 TB1 1~10번을 거쳐 1~5번은 J2, 6~10번은 J3로 간다">
+      <text x="240" y="30" text-anchor="end" font-weight="700" font-size="13">하네스</text>
+      <text x="500" y="30" text-anchor="middle" font-weight="700" font-size="13">TB1</text>
+      <text x="770" y="30" font-weight="700" font-size="13">베이스보드</text>
+      <text x="240" y="52" text-anchor="end" class="muted" font-size="11">버드뷰 본체 쪽</text>
+      <text x="240" y="232" text-anchor="end" class="car" font-size="11">13핀 분배함 쪽 (견인차, 절연)</text>
+      <text x="770" y="52" class="muted" font-size="11">J2 5P · 버드뷰 묶음</text>
+      <text x="770" y="232" class="car" font-size="11">J3 5P · 견인차 묶음</text>
+      <rect x="450" y="50" width="100" height="350" rx="4" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <path class="iso" d="M440 225H560"/>
+      <path class="w" d="M250 75H460"/>
+      <text x="240" y="79" text-anchor="end" font-size="12">버드뷰 상시 +12V (BATT) 분기</text>
+      <circle cx="466" cy="75" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="75" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="79" text-anchor="middle" class="mono" font-size="12" font-weight="700">1</text>
+      <path class="w" d="M540 75H760"/>
+      <text x="770" y="79" class="mono" font-size="12">J2 AVM12V</text>
+      <path class="w" d="M250 105H460"/>
+      <text x="240" y="109" text-anchor="end" font-size="12">버드뷰 RIGHT 트리거선</text>
+      <circle cx="466" cy="105" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="105" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="109" text-anchor="middle" class="mono" font-size="12" font-weight="700">2</text>
+      <path class="w" d="M540 105H760"/>
+      <text x="770" y="109" class="mono" font-size="12">J2 RIGHT</text>
+      <path class="w" d="M250 135H460"/>
+      <text x="240" y="139" text-anchor="end" font-size="12">버드뷰 LEFT 트리거선</text>
+      <circle cx="466" cy="135" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="135" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="139" text-anchor="middle" class="mono" font-size="12" font-weight="700">3</text>
+      <path class="w" d="M540 135H760"/>
+      <text x="770" y="139" class="mono" font-size="12">J2 LEFT</text>
+      <path class="w" d="M250 165H460"/>
+      <text x="240" y="169" text-anchor="end" font-size="12">버드뷰 REAR 트리거선</text>
+      <circle cx="466" cy="165" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="165" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="169" text-anchor="middle" class="mono" font-size="12" font-weight="700">4</text>
+      <path class="w" d="M540 165H760"/>
+      <text x="770" y="169" class="mono" font-size="12">J2 REAR</text>
+      <path class="w" d="M250 195H460"/>
+      <text x="240" y="199" text-anchor="end" font-size="12">버드뷰 JP5 9번 ACC_IN</text>
+      <circle cx="466" cy="195" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="195" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="199" text-anchor="middle" class="mono" font-size="12" font-weight="700">5</text>
+      <path class="w" d="M540 195H760"/>
+      <text x="770" y="199" class="mono" font-size="12">J2 ACC</text>
+      <path class="wc" d="M250 255H300M340 255H460"/>
+      <rect x="300" y="246" width="40" height="18" rx="2" fill="var(--sheet)" stroke="var(--car)" stroke-width="2"/><path class="wc" d="M302 255H338" stroke-width="1"/>
+      <text x="320" y="241" text-anchor="middle" class="car mono" font-size="11">F3 0.5A</text>
+      <text x="240" y="259" text-anchor="end" font-size="12" class="car">13핀 10번 시동 12V</text>
+      <circle cx="466" cy="255" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="255" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="259" text-anchor="middle" class="mono" font-size="12" font-weight="700">6</text>
+      <path class="wc" d="M540 255H760"/>
+      <text x="770" y="259" class="mono" font-size="12">J3 CAR</text>
+      <path class="wc" d="M250 285H460"/>
+      <text x="240" y="289" text-anchor="end" font-size="12" class="car">13핀 8번 후진</text>
+      <circle cx="466" cy="285" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="285" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="289" text-anchor="middle" class="mono" font-size="12" font-weight="700">7</text>
+      <path class="wc" d="M540 285H760"/>
+      <text x="770" y="289" class="mono" font-size="12">J3 REV</text>
+      <path class="wc" d="M250 315H460"/>
+      <text x="240" y="319" text-anchor="end" font-size="12" class="car">13핀 4번 우 깜빡이</text>
+      <circle cx="466" cy="315" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="315" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="319" text-anchor="middle" class="mono" font-size="12" font-weight="700">8</text>
+      <path class="wc" d="M540 315H760"/>
+      <text x="770" y="319" class="mono" font-size="12">J3 R</text>
+      <path class="wc" d="M250 345H460"/>
+      <text x="240" y="349" text-anchor="end" font-size="12" class="car">13핀 1번 좌 깜빡이</text>
+      <circle cx="466" cy="345" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="345" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="349" text-anchor="middle" class="mono" font-size="12" font-weight="700">9</text>
+      <path class="wc" d="M540 345H760"/>
+      <text x="770" y="349" class="mono" font-size="12">J3 L</text>
+      <path class="wc" d="M250 375H460"/>
+      <text x="240" y="379" text-anchor="end" font-size="12" class="car">13핀 3번 GND (1~8번용)</text>
+      <circle cx="466" cy="375" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="375" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
+      <text x="500" y="379" text-anchor="middle" class="mono" font-size="12" font-weight="700">10</text>
+      <path class="wc" d="M540 375H760"/>
+      <text x="770" y="379" class="mono" font-size="12">J3 G13</text>
+    </svg>
+    </div>
+    <p class="note">쇼트바는 쓰지 않는다 — 10자리가 모두 다른 선이다. 5(ACC)와 6(CAR)은 옆자리지만 카라반 쪽과 견인차 쪽이 갈리는 경계라 절대 잇지 않고, 10(G13)도 카라반 GND와 잇지 않는다. 나중에 같은 선을 여러 가닥 받을 일이 생기면 계단형용 ST 쇼트바(BC-ST□-10P, 피치 8.7mm)를 같은 묶음 안에서만 쓴다. F3는 13핀 10번에서 TB1-6 사이 하네스에 단다.</p>
+  </section>
+
+  <section class="sheet">
+    <h2>B안 — 하네스 쪽에 릴레이 (ACC_IN 전류가 클 때)</h2>
+    <p>PC817이 보장하는 출력 전류는 2~3mA 정도다(LED 6mA, CTR 최소 50%). ACC_IN 전류가 그보다 크면 판은 그대로 두고, J2 ACC 뒤(하네스 쪽)에 아래 릴레이 조각을 단다.</p>
+    <div class="scroll">
+    <svg viewBox="0 0 760 290" width="760" height="290" role="img" aria-label="U7 이미터가 Q1을 켜고, Q1이 K1 릴레이 코일을 당겨 접점이 카라반 상시 12V를 ACC_IN에 넘긴다">
+      <circle cx="47" cy="30" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="62" y="20" font-size="12" font-weight="700">버드뷰 상시 12V</text>
+      <path class="w" d="M54 30H170M210 30H560"/>
+      <rect x="170" y="21" width="40" height="18" rx="2" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <path class="w" d="M172 30H208" stroke-width="1"/>
+      <text x="190" y="56" text-anchor="middle" class="mono" font-size="11">퓨즈 1A</text>
+      <circle cx="47" cy="170" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="40" y="200" font-size="12" font-weight="700">J2 ACC (U7 이미터)</text>
+      <path class="w" d="M54 170H100M150 170H222"/>
+      <rect x="100" y="161" width="50" height="18" rx="2" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="125" y="153" text-anchor="middle" class="mono" font-size="11">R24 10kΩ</text>
+      <circle cx="190" cy="170" r="3.5" class="dot"/>
+      <path class="w" d="M190 170V200M190 240V262"/>
+      <rect x="181" y="200" width="18" height="40" rx="2" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="172" y="224" text-anchor="end" class="mono" font-size="11">R25 47kΩ</text>
+      <path class="w" d="M176 262H204M181 269H199M186 276H194"/>
+      <circle cx="244" cy="170" r="28" fill="none" stroke="var(--wire)" stroke-width="1.5"/>
+      <path class="w" d="M230 150V190M230 160L256 142V100M230 180L256 198V262"/>
+      <path d="M248 190.5L256 198L245.6 196.6Z" fill="var(--wire)"/>
+      <path class="w" d="M242 262H270M247 269H265M252 276H260"/>
+      <text x="282" y="176" class="mono" font-size="11">Q1 BC337</text>
+      <path class="w" d="M256 100V90M256 50V30"/>
+      <rect x="247" y="50" width="18" height="40" rx="2" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="232" y="76" text-anchor="end" class="mono" font-size="11">K1 코일</text>
+      <path class="w" d="M256 95H310V82M310 62V30"/>
+      <path d="M299 82H321L310 62Z" fill="var(--wire)"/><path class="w" d="M299 62H321"/>
+      <text x="330" y="76" class="mono" font-size="11">D6 1N4148</text>
+      <path class="w" d="M500 30V96"/>
+      <circle cx="500" cy="100" r="4" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <path class="w" d="M502 104L524 132"/>
+      <circle cx="500" cy="142" r="4" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <path class="w" d="M500 146V170H690"/>
+      <path class="iso" d="M265 70L512 118"/>
+      <text x="540" y="112" class="mono" font-size="11">K1 NO 접점</text>
+      <circle cx="697" cy="170" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
+      <text x="700" y="198" text-anchor="end" font-size="12" font-weight="700">버드뷰 ACC_IN</text>
+    </svg>
+    </div>
+    <p class="note">U7이 켜지면 Q1 베이스에 약 1.1mA → BC337(2N2222도 됨)이 12V 소형 릴레이 코일(30~40mA)을 당긴다. D6은 코일 역기전력 흡수, R25는 옵토 누설 전류로 Q1이 반쯤 켜지지 않게 한다. 판의 R22는 그대로 둬도 된다.</p>
+  </section>
+
+  <section class="grid2">
+    <div class="sheet">
+      <h2>켜는 규칙 (rvnode)</h2>
+      <table>
+        <thead><tr><th>조건</th><th>핀 35</th></tr></thead>
+        <tbody>
+          <tr><td>차 시동 켜짐 (핀 37 Low)</td><td class="hi">High</td></tr>
+          <tr><td>HA·디스플레이 스위치 켬</td><td class="hi">High</td></tr>
+          <tr><td>원격 영상 보는 중 (docs/30)</td><td class="hi">High</td></tr>
+          <tr><td>셋 다 아님 (+ 끄기 지연)</td><td class="m">Low</td></tr>
+        </tbody>
+      </table>
+      <p class="note">OR는 rvnode <code>birdview</code>가 한다. 시동을 끈 뒤에는 <code>off_delay_s</code>(기본 30초) 동안 더 켜 둔다. 트리거(36·38·40)는 핀 35가 켜져 있을 때만 켜고, 끌 때는 트리거부터 내린다. Radxa가 죽으면 차 시동으로도 버드뷰가 켜지지 않는다. rvnode는 systemd가 다시 띄운다.</p>
+    </div>
+
+    <div class="sheet">
+      <h2>부품</h2>
+      <table>
+        <thead><tr><th>기호</th><th>부품</th><th>쓰는 곳</th></tr></thead>
+        <tbody>
+          <tr><td class="m">U7, U8</td><td>PC817</td><td>판 위</td></tr>
+          <tr><td class="m">R21</td><td>330Ω</td><td>판 위</td></tr>
+          <tr><td class="m">R22</td><td>47kΩ</td><td>판 위 (Z행)</td></tr>
+          <tr><td class="m">R23</td><td>3.3kΩ</td><td>판 위 (Z행)</td></tr>
+          <tr><td class="m">D5</td><td>1N4148</td><td>판 위</td></tr>
+          <tr><td class="m">J2, J3</td><td>5.08 플러그형 단자 5P (4P에서 교체)</td><td>판 위 — J2 버드뷰 묶음, J3 견인차 묶음</td></tr>
+          <tr><td class="m">TB1</td><td>BC-ABB-S10PT 내장 10P 계단형 단자대 (5+5)</td><td>단자박스 — 1~5 → J2, 6~10 → J3. 쇼트바 없음</td></tr>
+          <tr><td class="m">—</td><td>피복선 약 25cm</td><td>#35 → R21, #37 → U8 C</td></tr>
+          <tr><td class="m">F3</td><td>인라인 퓨즈 0.5A</td><td>차 시동 12V선 (하네스)</td></tr>
+          <tr><td class="m">Q1, K1, R24, R25, D6</td><td>BC337, 12V 릴레이, 10kΩ, 47kΩ, 1N4148</td><td>B안만 (하네스)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="sheet">
+    <h2>베이스보드에 더하는 것 (기존 부품·맨선은 그대로)</h2>
+    <table>
+      <thead><tr><th>부품</th><th>구멍</th><th>잇는 곳</th></tr></thead>
+      <tbody>
+        <tr><td class="m">J2, J3</td><td class="m">J2 ACC V-X · J3 CAR S-X</td><td>4P → 5P 교체. 후진 맨선은 S-W → Q-W → Q-X로 옮긴다</td></tr>
+        <tr><td class="m">U7</td><td class="m">U-S~T-V</td><td>R13·R9 사이(양옆 0.4mm). C ← S행 AVM12V 끝, K ← N행 GND 버스(U열), E → J2 ACC</td></tr>
+        <tr><td class="m">R21</td><td class="m">R-S~R-V</td><td>7.62mm로 눕힘. 위 → U7 A, 아래 ← 핀 35 피복선</td></tr>
+        <tr><td class="m">R22</td><td class="m">Z-Z~V-Z</td><td>Z행 윗면(J2 플러그 앞). ACC ↔ GND(E′열로 N행에서)</td></tr>
+        <tr><td class="m">U8</td><td class="m">J-U~G-V</td><td>J3·J1 사이, 90° 돌림. K → K열 G13, E → F열 GND, C ← 핀 37 피복선</td></tr>
+        <tr><td class="m">D5</td><td class="m">I-W~I-Z</td><td>세로로 눕힘. U8 LED 역병렬</td></tr>
+        <tr><td class="m">R23</td><td class="m">S-Z~O-Z</td><td>Z행 윗면(J3 플러그 앞). 차 12V는 J3 CAR(S-X) → R23 → Z행 → H열 → U8 A</td></tr>
+        <tr><td class="m">피복선</td><td class="m">V-E → R-V · W-E → G-U</td><td>핀 35·37. 핀 37 바로 위 W-D가 3.3V라 땜납이 번지지 않게</td></tr>
+      </tbody>
+    </table>
+    <p class="note">배치 그림은 베이스보드 페이지(네트 목록에서 "U7 → J2 ACC" 등)에 있다.</p>
+  </section>
+
+  <section class="sheet">
+    <h2>붙이기 전에 확인할 것</h2>
+    <div class="warnbox">
+      <strong>ACC_IN 전류를 먼저 재서 A안·B안을 고른다.</strong>
+      <span>카라반 12V에서 1kΩ을 거쳐 ACC_IN에 넣고, 1kΩ 양단 전압으로 전류를 잰다(1V = 1mA). 버드뷰가 켜지고 2mA 안쪽이면 A안, 넘거나 켜지지 않으면 B안이다.</span>
+    </div>
+    <ol>
+      <li>차 시동 12V의 귀환은 J3 G13을 같이 쓴다. G13을 카라반 GND와 잇지 않는다. 옵토가 둘 사이를 끊는 것이 이 회로의 목적이다.</li>
+      <li><b>J2-1(AVM_12V)이 버드뷰 상시(BATT)선인지 확인한다.</b> ACC선이면 옮긴다.</li>
+      <li>보드가 오면 <code>gpioinfo</code>로 핀 35·37의 칩·라인 번호를 확인한다. 핀 37은 <code>bias=pull-up</code>으로 요청한다. 부팅하는 동안 핀 35가 High로 튀지 않는지 본다. 튀면 버드뷰가 부팅마다 잠깐 켜진다.</li>
+          </ol>
+  </section>
+</div>

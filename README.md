@@ -1,7 +1,15 @@
 # rvnode — Radxa ZERO 3W 통합 노드
 
-캠핑카의 Radxa ZERO 3W에서 도는 Python asyncio 데몬입니다. 설계와 옮기는 순서는 rv-controller 저장소의
-`docs/29-radxa-node.md`, 배선은 `docs/18-wiring.md` §12에 있습니다.
+캠핑카의 Radxa ZERO 3W에서 도는 Python asyncio 데몬입니다. 문서는 `docs/`에 있습니다.
+
+- [`docs/29-radxa-node.md`](docs/29-radxa-node.md) — 넘길 기능과 옮기는 순서
+- [`docs/18-wiring.md`](docs/18-wiring.md) — 배선 §12 (핀 배정·회로도·부품·만능기판 배치·외부 결선)
+- [`docs/24-gps-weather.md`](docs/24-gps-weather.md) — GPS·나침반·날씨
+- [`docs/30-birdview-video.md`](docs/30-birdview-video.md) — 버드뷰 화면 원격 보기
+- [`docs/artifacts/radxa-baseboard.html`](docs/artifacts/radxa-baseboard.html) — 베이스보드 회로도·기판 배치 페이지,
+  [`docs/artifacts/avm-acc-or.html`](docs/artifacts/avm-acc-or.html) — AVM 켜짐(ACC OR) 회로
+
+ESP 노드 쪽 문서(§0~§11 배선, MQTT 규약 `docs/07` 등)는 rv-controller 저장소에 있습니다.
 
 ESP 노드와 **같은 MQTT·HA discovery 규약**을 씁니다(`docs/07` §B). 그래서 ESP `9FCEE4`(MACH+JBD+TPMS)를
 넘겨받아도 HA 엔티티(`uniq_id = <device_id>_<slug>_<key>`)·기록·대시보드·디스플레이가 그대로 이어집니다.
@@ -43,7 +51,7 @@ python3 -m venv .venv
 
 ## 장치: birdview
 
-rv-controller `docs/18` §12.2 "AVM 켜짐"과 트리거 출력을 맡는다. 설정은 `config.example.yaml`의 `birdview` 블록.
+`docs/18` §12.2 "AVM 켜짐"과 트리거 출력을 맡는다. 설정은 `config.example.yaml`의 `birdview` 블록.
 
 - 입력(옵토 → GPIO, Low = 켜짐): 차 시동(핀 37), 13핀 좌·우 깜빡이(22·28), 후진(32).
 - 출력: 버드뷰 ACC(핀 35), 시점 트리거 후방·좌·우(36·38·40).
@@ -56,7 +64,7 @@ rv-controller `docs/18` §12.2 "AVM 켜짐"과 트리거 출력을 맡는다. �
   데몬이 끝날 때도 트리거 → 전원 순서로 끈다.
 - 보드에서 처음: `gpioinfo`로 핀 35(GPIO3_A4 = gpiochip3/4)·37(GPIO1_A4 = gpiochip1/4)이 맞는지 보고 `enabled: true`.
   부팅 중 핀 35가 High로 튀지 않는지 본다.
-- 아직 없는 것: GPS로 주행을 판단해 후방으로 바꾸는 규칙(docs/29 §1 결정 5) — gps 모듈이 생기면 붙인다.
+- 아직 없는 것: GPS로 주행을 판단해 후방으로 바꾸는 규칙([docs/29](docs/29-radxa-node.md) §1 결정 5) — gps 모듈이 생기면 붙인다.
 
 ## 장치 모듈 추가
 

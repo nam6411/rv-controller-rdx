@@ -1,0 +1,678 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Radxa 통합 노드 베이스보드</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 위 = 기판 그림(윗면/뒷면 전환), 아래 = 배선 순서표 + 부품표. 기판 색은 FR-2 페놀 기판, 패드는 구리 */
+:root{
+  --bg:#f3f1ec; --panel:#ffffff; --fg:#22201c; --muted:#6b665c; --line:#d8d3c7;
+  --board:#c9a874; --board-edge:#9c7f50; --pad:#b8732f; --pad-used:#d99a52; --hole:#5a4426;
+  --solder:#a9adb3; --body-res:#e7d6b4; --body-dark:#2b2b2e; --body-blue:#2f6db5; --body-white:#f2f0ea;
+  --accent:#b8501e; --dim:.14; --probe-pos:#d0202a; --probe-com:#1b1b1b;
+  --n-gnd:#2b2b2b; --n-p12:#c0257a; --n-p5:#d42b2b; --n-p33:#e07a00; --n-avm:#7a3fc0;
+  --n-spi:#1f6fd1; --n-gps:#178a4a; --n-bv:#0f8f8f; --n-in:#a07800; --n-iso:#8a5a2b; --n-out:#0077b6; --n-trig:#b5179e;
+  --font-body:"IBM Plex Sans KR",system-ui,sans-serif; --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#17181a; --panel:#202226; --fg:#ebe8e2; --muted:#a19c92; --line:#34363b;
+  --board:#3d3524; --board-edge:#5c4f33; --pad:#9a6430; --pad-used:#d4934b; --hole:#141210;
+  --solder:#c4c8cf; --body-res:#cdb98f; --body-dark:#0d0d0f; --body-blue:#3d7fd0; --body-white:#d9d6cf;
+  --accent:#f08a4b; --dim:.18; --probe-pos:#ff5a5f; --probe-com:#e9e9e9;
+  --n-gnd:#d0d0d0; --n-p12:#ff5fb0; --n-p5:#ff6060; --n-p33:#ffa940; --n-avm:#b58cff;
+  --n-spi:#5aa6ff; --n-gps:#45c97c; --n-bv:#3cd0d0; --n-in:#e8c040; --n-iso:#d39a62; --n-out:#4cb8f0; --n-trig:#f064d8;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17181a; --panel:#202226; --fg:#ebe8e2; --muted:#a19c92; --line:#34363b;
+  --board:#3d3524; --board-edge:#5c4f33; --pad:#9a6430; --pad-used:#d4934b; --hole:#141210;
+  --solder:#c4c8cf; --body-res:#cdb98f; --body-dark:#0d0d0f; --body-blue:#3d7fd0; --body-white:#d9d6cf;
+  --accent:#f08a4b; --dim:.18; --probe-pos:#ff5a5f; --probe-com:#e9e9e9;
+  --n-gnd:#d0d0d0; --n-p12:#ff5fb0; --n-p5:#ff6060; --n-p33:#ffa940; --n-avm:#b58cff;
+  --n-spi:#5aa6ff; --n-gps:#45c97c; --n-bv:#3cd0d0; --n-in:#e8c040; --n-iso:#d39a62; --n-out:#4cb8f0; --n-trig:#f064d8;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+h1{font-size:1.6rem;margin:0;font-weight:700;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:1.1rem;margin:0 0 10px;font-weight:700}
+.sub{color:var(--muted);margin:4px 0 0;max-width:72ch}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+.seg button{font:inherit;border:0;background:none;color:var(--fg);padding:7px 14px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.seg button:focus-visible,.net:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.chk{display:inline-flex;gap:6px;align-items:center;color:var(--muted);cursor:pointer}
+select{font:inherit;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;max-width:100%}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;overflow-x:auto}
+.stage svg{display:block;width:100%;min-width:900px;height:auto}
+.hint{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--muted);font-size:.86rem;margin-top:8px}
+.legend{display:flex;flex-wrap:wrap;gap:6px}
+.net{cursor:default;font:inherit;font-size:.82rem;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+  background:var(--panel);color:var(--fg);border-radius:999px;padding:3px 10px 3px 8px;cursor:pointer}
+.net i{width:14px;height:4px;border-radius:2px;display:inline-block}
+.net[aria-pressed="true"]{border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:900px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:500;color:var(--muted);font-size:.78rem;letter-spacing:.04em}
+tr.grp td{padding-top:14px;font-weight:700;border-bottom:none}
+tr.grp i{display:inline-block;width:18px;height:5px;border-radius:2px;margin-right:8px;vertical-align:middle}
+tr.done td:not(:first-child){color:var(--muted);text-decoration:line-through}
+tr.hl td{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+td input{width:16px;height:16px;accent-color:var(--accent)}
+.kind{font-size:.74rem;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--muted);white-space:nowrap}
+.kind.new{border-color:var(--accent);color:var(--accent);font-weight:500}
+.newsum{border-left:3px solid var(--accent);padding:6px 10px;background:color-mix(in srgb,var(--accent) 8%,transparent);border-radius:0 6px 6px 0;font-size:.9rem}
+.notes{display:grid;gap:8px;margin:0;padding-left:18px;color:var(--fg)}
+.notes li::marker{color:var(--accent)}
+.progress{font-size:.86rem;color:var(--muted)}
+svg text{font-family:var(--font-mono)}
+.pad.sel{stroke:var(--accent);stroke-width:2.2}
+@media (prefers-reduced-motion:no-preference){.fade{transition:opacity .15s}}
+.modebtn{font:inherit;border:1px solid var(--accent);color:var(--accent);background:var(--panel);border-radius:8px;padding:7px 14px;cursor:pointer;font-weight:500}
+.modebtn[aria-pressed="true"]{background:var(--accent);color:var(--panel)}
+.modebtn:focus-visible,.ck-reset:focus-visible,.ck-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.checking .stage{position:sticky;top:env(safe-area-inset-top,0px);z-index:3;box-shadow:0 6px 16px -10px rgba(0,0,0,.35)}
+.checking .stage svg{min-width:0;height:min(52vh,560px);width:100%}
+.checking .hint,.checking #newsum,.checking .legend{display:none}
+.ck-cap{font-size:.9rem;margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;min-height:1.4em}
+.ck-cap b{color:var(--fg)}
+.ck-key{display:inline-flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:.8rem}
+.ck-key i{display:inline-block;width:10px;height:10px;border-radius:50%;border:2.5px solid;vertical-align:-1px;margin-right:4px}
+.ck-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;margin-bottom:6px}
+.ck-head h2{margin:0}
+.ck-prog{font-family:var(--font-mono);font-size:.84rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.ck-sync{font-size:.8rem;color:var(--muted);margin-left:auto}
+.ck-reset{font:inherit;font-size:.8rem;background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:2px 10px;cursor:pointer}
+.ck-reset.armed{border-color:var(--n-p5);color:var(--n-p5)}
+.ck-ph{margin:18px 0 2px;font-size:1rem;display:flex;gap:8px;align-items:baseline}
+.ck-ph .tag{font-family:var(--font-mono);font-size:.75rem;background:var(--accent);color:var(--panel);border-radius:4px;padding:0 6px}
+.ck-lead{margin:0 0 6px;color:var(--muted);font-size:.88rem}
+.ck-grp{margin:12px 0 4px;font-size:.88rem;font-weight:700;display:flex;justify-content:space-between;gap:10px}
+.ck-grp span:last-child{font-family:var(--font-mono);font-weight:400;color:var(--muted)}
+.ck-note{margin:0 0 4px;font-size:.82rem;color:var(--n-p5)}
+.ck-row{display:grid;grid-template-columns:20px minmax(0,1fr);gap:4px 10px;padding:8px 10px;border:1px solid transparent;border-top-color:var(--line);cursor:pointer}
+.ck-row:hover{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.ck-row.on{border-color:var(--accent);border-radius:8px;background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ck-row input[type=checkbox]{width:17px;height:17px;margin:3px 0 0;accent-color:var(--n-gps);cursor:pointer}
+.ck-row.done .ck-t{color:var(--muted);text-decoration:line-through}
+.ck-t{font-size:.9rem;min-width:0}
+.ck-t code{font-family:var(--font-mono);font-size:.86em;background:color-mix(in srgb,var(--fg) 8%,transparent);padding:0 4px;border-radius:3px;overflow-wrap:anywhere}
+.ck-pts{grid-column:2;font-family:var(--font-mono);font-size:.76rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 12px}
+.ck-pts .pos{color:var(--probe-pos)} .ck-pts .com{color:var(--fg)} .ck-pts .inj{color:var(--n-p12)} .ck-pts .lk{color:var(--accent)}
+.ck-m{grid-column:2;display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--muted)}
+.ck-m input{font-family:var(--font-mono);font-size:.82rem;width:10em;max-width:100%;padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Radxa 통합 노드 베이스보드</h1>
+    <p class="sub">베이스보드(1층) 위에 Radxa Zero 3W(2층)를 얹어 꽂는다. J5 암 소켓은 다른 부품처럼 윗면에 달고, Radxa는 수 헤더를 <b>Radxa 뒷면</b>에 납땜해 부품면이 위를 보게 꽂는다.
+      판은 PY 7×9cm(31열 × 26행, 2.54mm)이고, 부품은 윗면, 배선은 뒷면 맨선을 가로·세로로만 깐다. 점퍼는 나중에 더한 AVM 켜짐·차 시동 회로의 뒷면 피복선 두 가닥뿐이다.
+      구멍 이름은 기판 실크 글자 그대로 <b>열 글자-행 글자</b>(예: <span class="mono">K-L</span> = 위쪽 K열, 왼쪽 L행)다.
+      행은 왼쪽 실크대로 위에서부터 A~Z. 열은 위쪽 실크대로 <b>오른쪽 끝부터</b> A~Z를 센 뒤 다시 A~E로 돌아가므로, 두 번째 바퀴의 왼쪽 5열은 <span class="mono">A′~E′</span>로 적는다(실크의 위쪽 글자는 뒤집혀 찍혀 있다).
+      맨 오른쪽 A열은 비운다. 아래 Y행은 단자 몸통 밑이고, Z행에는 나중에 더한 R22·R23과 맨선이 들어간다. 회로는 docs/18-wiring.md §12와 같다.</p>
+  </header>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="보기">
+      <button id="v-top" aria-pressed="true">윗면 · 부품</button>
+      <button id="v-bot" aria-pressed="false">뒷면 · 배선 (좌우 반전)</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="ov"> 윗면에 배선 겹쳐 보기</label>
+    <label class="chk" style="color:var(--accent);font-weight:500"><input type="checkbox" id="nw" checked> 추가 납땜만 강조 (2026-10-25)</label>
+    <label class="chk" for="netsel">네트 <select id="netsel"><option value="">전체</option></select></label>
+    <button class="modebtn" id="ckmode" aria-pressed="false">점검 모드 · 첫 연결</button>
+  </div>
+
+  <div class="stage"><svg id="svg" role="img" aria-label="만능기판 배치도"></svg>
+    <div class="hint"><span>구멍이나 선을 누르면 그 네트만 보인다 (다시 누르면 전체)</span><span>마우스를 올리면 구멍 이름·부품 핀·네트</span><span style="color:var(--accent)">주황 점선 상자 = 추가할 부품(촘촘한 점선 = 교체할 헤더) · 주황 고리 = 기존 납땜점에 이어 붙이는 곳 · 빨간 점선 ✕ = 떼어 낼 맨선</span><span id="viewnote"></span></div>
+    <div class="ck-cap" id="ckcap" hidden></div>
+  </div>
+  <section class="card" id="checks" hidden>
+    <div class="ck-head"><h2>첫 연결 점검</h2><span class="ck-prog" id="ckprog"></span><span class="ck-sync" id="cksync"></span><button class="ck-reset" id="ckreset" type="button">체크 모두 지우기</button></div>
+    <div class="ck-key"><span><i style="border-color:var(--probe-pos)"></i>빨간 리드(+)</span><span><i style="border-color:var(--probe-com)"></i>검은 리드(COM)</span><span><i style="border-color:var(--n-p12);border-radius:2px"></i>전원을 넣는 곳</span><span><i style="border-color:var(--accent);border-style:dashed"></i>눈으로 볼 곳</span><span>항목을 누르면 위 그림에 표시된다</span></div>
+    <div id="cklist"></div>
+  </section>
+  <div class="legend" id="legend"></div>
+  <p class="newsum" id="newsum"></p>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>배선 순서표</h2>
+      <p class="progress" id="prog"></p>
+      <div class="tbl"><table id="wires"><thead><tr><th></th><th>방향</th><th>시작</th><th>끝</th></tr></thead><tbody></tbody></table></div>
+    </section>
+    <div style="display:flex;flex-direction:column;gap:22px;min-width:0">
+      <section class="card">
+        <h2>납땜 전에</h2>
+        <ul class="notes">
+          <li><b>J5 1번 = E-E</b>(E열·E행, 오른쪽 끝 위 줄). 홀수 핀이 E행, 짝수 핀이 F행이다. Radxa는 A~F행 위를 덮고 판 위쪽 가장자리 밖으로 약 1cm 나간다(그림의 점선).</li>
+          <li>Radxa 수 헤더는 <b>Radxa 뒷면</b>(부품 없는 쪽)에 납땜한다. 윗면에 달면 거울상이 돼서 5V가 엉뚱한 핀에 들어간다. 꽂기 전에 Radxa 1번 핀이 E-E 위에 오는지 확인한다.</li>
+          <li><b>높이:</b> 판 윗면에서 Radxa 밑면까지 약 11mm(소켓 8.5 + Radxa 헤더 받침 2.5)다. 그래서 J4·J7·J8은 <b>측면 진입형 Molex 5046</b>(3P·6P·2P, 케이블 쪽은 5051 하우징 + 압착 단자)을 쓰고, 입구가 판 위쪽 가장자리(A행 밖)를 향하게 단다. 5046은 2.5mm 간격이라 2.54mm 판에 6핀까지 그대로 들어간다. 헤더에 하우징을 꽂은 높이가 11mm 안인지 납땜 전에 잰다. 커넥터를 뺄 때는 Radxa를 먼저 뽑는다.</li>
+          <li><b>뒷면에서는 좌우가 바뀐다.</b> A열이 왼쪽 끝, A′~E′열이 오른쪽 끝에 온다. 뒷면 보기는 그렇게 뒤집어 그렸다.</li>
+          <li>배선은 뒷면 맨선(주석 도금 단선 0.5~0.6mm)을 가로·세로로만 깐다. 표의 한 줄이 곧은 한 가닥이다. 5V·GND·12V 가닥은 0.8mm 이상으로. J5 E·F행 패드 사이에 땜납이 번지지 않게 한다.</li>
+          <li>PC817은 점(1번 핀) 방향을 그림대로. 입력(U4~U6)은 LED가 아래(단자 쪽), 출력(U1~U3)은 LED가 위다. U7은 LED가 위, U8은 90° 돌려 LED가 왼쪽(G13 쪽)이다.</li>
+          <li><b>단자 순서(왼쪽부터):</b> J1 = GND·+12V, J3 = CAR·REV·R·L·G13(5P), J2 = AVM·RIGHT·LEFT·REAR·ACC(5P). J6(GPS) = RX·TX·GND·5V, J7 = GND·SCK·MISO·MOSI·VCC·CSN.</li>
+          <li><b>하네스는 단자박스 TB1(BC-ABB-S10PT 내장 10P 계단형, 5+5)에서 받는다.</b> TB1 1~5 = AVM12V·RIGHT·LEFT·REAR·ACC → J2, 6~10 = CAR·REV·R·L·G13 → J3 — 플러그 순서 그대로 5심 선 두 가닥. TB1에는 쇼트바를 쓰지 않는다(5 ACC·6 CAR 사이, 10 G13은 잇지 않는다). 판은 바뀌지 않는다. 회로는 AVM 켜짐 페이지의 "단자박스 TB1".</li>
+          <li><b>입력 GND(J1·PS1 IN−)</b>는 <span class="mono">J-L → J-T</span>·<span class="mono">J-T → F-T</span> 두 가닥으로 판 위 GND에 직접 묶는다 — MP1584 안의 GND에만 기대지 않는다. J4·J7 GND는 Radxa GND 핀(9·25)을 거쳐 이어지므로 Radxa를 뺀 채로 재면 열려 보인다.</li>
+          <li>PS1(MP1584)은 단선 다리 4개로 띄워 단다. + 쪽(IN+·OUT+)이 왼쪽(H열)이다. 꽂기 전에 출력을 5.0~5.1V로 맞춘다.</li>
+          <li>BE-880 케이블 6가닥은 J6(5V·GND·TX·RX, 4P)과 J8(SDA·SCL, 2P)로 나눠 꽂는다. 모듈 실크는 C(SCL)·V(5V)·R(RX)·T(TX)·G(GND)·D(SDA) — 작업대에서 이 모듈은 C·D가 표기와 반대로 동작했다. 나침반이 안 잡히면 J8 두 선을 바꾼다(docs/24 §7.1). J7은 CC1101 모듈 실크의 핀 이름대로 잇고 GDO0·GDO2는 비운다.</li>
+          <li><b>AVM 켜짐·차 시동 (2026-10-25 추가 — 납땜을 마친 판에 더한다):</b> <b>J2·J3를 5P로 바꾼다.</b> J2 = 버드뷰 묶음(AVM12V·RIGHT·LEFT·REAR·<b>ACC</b> <span class="mono">V-X</span>), J3 = 견인차 묶음(<b>CAR</b> <span class="mono">S-X</span>·REV·R·L·G13). CAR 자리에 있던 후진 맨선은 W행으로 옮긴다(<span class="mono">S-W → Q-W → Q-X</span>). <b>AVM 출력</b>: U7 <span class="mono">U-S~T-V</span>(R13·R9 사이, 양옆 0.4mm), R21 330Ω <span class="mono">R-S~R-V</span>. U7 컬렉터는 S행 AVM12V 끝에서, GND는 N행 버스에서 U열로, 이미터는 J2 ACC로. R22 47kΩ(ACC 풀다운) 자리는 Z행 윗면 <span class="mono">Z-Z~V-Z</span>, GND는 E′열로 N행에서 내려온다 — <b>2026-10-28: R22는 일단 달지 않는다</b>(버드뷰가 깔끔히 안 꺼지면 그때 단다). <b>차 시동 입력</b>: U8은 J3와 J1 사이에 <b>90° 돌려</b> <span class="mono">J-U~G-V</span> — K는 K열 G13, E는 F열 GND. D5 <span class="mono">I-W~I-Z</span>, R23 3.3kΩ은 Z행 윗면 <span class="mono">S-Z~O-Z</span>, 차 12V는 J3 CAR에서 <span class="mono">S-Z</span>로 바로 내려온다. Z행 윗면 저항은 단자 플러그의 플라스틱 앞이다 — 플러그를 끝까지 꽂아 걸리지 않는지 본다. 뒷면 <b>피복선 두 가닥</b>: 핀 35 → R21(<span class="mono">V-E → R-V</span>), 핀 37 → U8 C(<span class="mono">W-E → G-U</span>). 핀 37 바로 위 <span class="mono">W-D</span>가 3.3V라 땜납이 번지지 않게 한다. 회로는 docs/18 §12.2 "AVM 켜짐".</li>
+          <li>버드뷰 트리거 입력 극성을 먼저 잰다(docs/18 §12.5). active-low면 출력부를 §12.2 끝대로 바꾼다.</li>
+        </ul>
+      </section>
+      <section class="card">
+        <h2>부품표</h2>
+        <div class="tbl"><table id="parts"><thead><tr><th>기호</th><th>부품</th><th>구멍</th></tr></thead><tbody></tbody></table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+const D = {"cols": 31, "rows": 26, "rowNames": "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "parts": [{"ref": "J5", "kind": "socket", "value": "2×20 헤더 소켓 (암, H8.5mm) — 윗면, Radxa가 위에 꽂힘", "pins": {"1": [27, 5], "2": [27, 6], "3": [26, 5], "4": [26, 6], "5": [25, 5], "6": [25, 6], "7": [24, 5], "8": [24, 6], "9": [23, 5], "10": [23, 6], "11": [22, 5], "12": [22, 6], "13": [21, 5], "14": [21, 6], "15": [20, 5], "16": [20, 6], "17": [19, 5], "18": [19, 6], "19": [18, 5], "20": [18, 6], "21": [17, 5], "22": [17, 6], "23": [16, 5], "24": [16, 6], "25": [15, 5], "26": [15, 6], "27": [14, 5], "28": [14, 6], "29": [13, 5], "30": [13, 6], "31": [12, 5], "32": [12, 6], "33": [11, 5], "34": [11, 6], "35": [10, 5], "36": [10, 6], "37": [9, 5], "38": [9, 6], "39": [8, 5], "40": [8, 6]}, "body": [7.5, 4.52, 27.5, 6.48]}, {"ref": "J4", "kind": "pinhdr", "value": "Molex 5046 3P 측면 진입 (버드뷰 UART) — 입구가 판 위쪽 가장자리를 향하게", "pins": {"RX": [30, 1], "TX": [29, 1], "GND": [28, 1]}, "body": [27.5, 0.5, 30.5, 1.5]}, {"ref": "R16", "kind": "res", "value": "1kΩ", "pins": {"1": [25, 2], "2": [29, 2]}, "body": [25.75, 1.55, 28.25, 2.45]}, {"ref": "R17", "kind": "res", "value": "1kΩ", "pins": {"1": [26, 3], "2": [30, 3]}, "body": [26.75, 2.55, 29.25, 3.45]}, {"ref": "J7", "kind": "pinhdr", "value": "Molex 5046 6P 측면 진입 (CC1101 케이블) — 입구가 판 위쪽 가장자리를 향하게", "pins": {"CSN": [20, 2], "VCC": [19, 2], "MOSI": [18, 2], "MISO": [17, 2], "SCK": [16, 2], "GND": [15, 2]}, "body": [14.5, 1.5, 20.5, 2.5]}, {"ref": "J8", "kind": "pinhdr", "value": "Molex 5046 2P 측면 진입 (GPS 나침반 I2C) — 입구가 판 위쪽 가장자리를 향하게", "pins": {"SCL": [13, 3], "SDA": [12, 3]}, "body": [11.5, 2.5, 13.5, 3.5]}, {"ref": "R19", "kind": "res", "value": "4.7kΩ", "pins": {"1": [13, 4], "2": [9, 4]}, "body": [9.75, 3.55, 12.25, 4.45]}, {"ref": "R20", "kind": "res", "value": "4.7kΩ", "pins": {"1": [11, 3], "2": [7, 3]}, "body": [7.75, 2.55, 10.25, 3.45]}, {"ref": "J1", "kind": "term", "value": "플러그형 단자 2P 5.08 (TB39R-02P + TB37V-02P)", "pins": {"+12V": [28, 24], "GND": [26, 24]}, "body": [25.0, 22.7, 29.0, 25.3]}, {"ref": "F1", "kind": "ptc", "value": "PTC 1.1A (RUEF110)", "pins": {"1": [27, 21], "2": [29, 21]}, "body": [26.6, 20.5, 29.4, 21.5]}, {"ref": "D1", "kind": "diode", "value": "1N5819", "pins": {"A": [30, 23], "K": [30, 19]}, "body": [29.5, 20.0, 30.5, 22.0]}, {"ref": "PS1", "kind": "module", "value": "MP1584 강압 5.0V", "pins": {"OUT+": [24, 11], "OUT-": [29, 11], "IN+": [24, 19], "IN-": [29, 19]}, "body": [23.0, 10.65, 30.0, 19.35]}, {"ref": "C1", "kind": "ecap", "value": "470µF 10V", "pins": {"+": [25, 9], "-": [27, 9]}, "body": [24.43, 7.43, 27.57, 10.57]}, {"ref": "J6", "kind": "xh", "value": "4P 커넥터 (GPS UART) — JST-XH 4P 등 가진 것", "pins": {"5V": [22, 9], "GND": [21, 9], "TX": [20, 9], "RX": [19, 9]}, "body": [18.060000000000002, 7.87, 22.939999999999998, 10.13]}, {"ref": "U4", "kind": "opto_in", "value": "PC817", "pins": {"1": [18, 16], "2": [19, 16], "3": [19, 13], "4": [18, 13]}, "body": [17.6, 13.22, 19.4, 15.78]}, {"ref": "D2", "kind": "diode_s", "value": "1N4148", "pins": {"A": [20, 15], "K": [20, 18]}, "body": [19.619999999999997, 15.75, 20.380000000000003, 17.25]}, {"ref": "R7", "kind": "res", "value": "2.2kΩ", "pins": {"1": [19, 18], "2": [19, 22]}, "body": [18.55, 18.75, 19.45, 21.25]}, {"ref": "U5", "kind": "opto_in", "value": "PC817", "pins": {"1": [15, 16], "2": [16, 16], "3": [16, 13], "4": [15, 13]}, "body": [14.600000000000001, 13.22, 16.4, 15.78]}, {"ref": "D3", "kind": "diode_s", "value": "1N4148", "pins": {"A": [17, 15], "K": [17, 18]}, "body": [16.619999999999997, 15.75, 17.380000000000003, 17.25]}, {"ref": "R8", "kind": "res", "value": "2.2kΩ", "pins": {"1": [16, 18], "2": [16, 22]}, "body": [15.55, 18.75, 16.45, 21.25]}, {"ref": "U6", "kind": "opto_in", "value": "PC817", "pins": {"1": [12, 16], "2": [13, 16], "3": [13, 13], "4": [12, 13]}, "body": [11.600000000000001, 13.22, 13.399999999999999, 15.78]}, {"ref": "D4", "kind": "diode_s", "value": "1N4148", "pins": {"A": [14, 15], "K": [14, 18]}, "body": [13.620000000000001, 15.75, 14.379999999999999, 17.25]}, {"ref": "R9", "kind": "res", "value": "2.2kΩ", "pins": {"1": [13, 18], "2": [13, 22]}, "body": [12.55, 18.75, 13.45, 21.25]}, {"ref": "J3", "kind": "term", "value": "플러그형 단자 5P 5.08 (BR-508 계열) — 견인차 묶음: CAR·REV·R·L·G13 ← 단자박스 TB1 6~10", "pins": {"G13": [21, 24], "L": [19, 24], "R": [17, 24], "REV": [15, 24], "CAR": [13, 24]}, "body": [12.0, 22.7, 22.0, 25.3], "replaced": true}, {"ref": "R1", "kind": "res", "value": "330Ω", "pins": {"1": [10, 8], "2": [10, 12]}, "body": [9.55, 8.75, 10.45, 11.25]}, {"ref": "U1", "kind": "opto_out", "value": "PC817", "pins": {"2": [9, 13], "1": [10, 13], "3": [9, 16], "4": [10, 16]}, "body": [8.6, 13.22, 10.4, 15.78]}, {"ref": "R4", "kind": "res", "value": "10kΩ", "pins": {"1": [8, 14], "2": [8, 18]}, "body": [7.55, 14.75, 8.45, 17.25]}, {"ref": "R13", "kind": "res", "value": "470Ω", "pins": {"1": [9, 18], "2": [9, 22]}, "body": [8.55, 18.75, 9.45, 21.25]}, {"ref": "R2", "kind": "res", "value": "330Ω", "pins": {"1": [7, 8], "2": [7, 12]}, "body": [6.55, 8.75, 7.45, 11.25]}, {"ref": "U2", "kind": "opto_out", "value": "PC817", "pins": {"2": [6, 13], "1": [7, 13], "3": [6, 16], "4": [7, 16]}, "body": [5.6, 13.22, 7.4, 15.78]}, {"ref": "R5", "kind": "res", "value": "10kΩ", "pins": {"1": [5, 14], "2": [5, 18]}, "body": [4.55, 14.75, 5.45, 17.25]}, {"ref": "R14", "kind": "res", "value": "470Ω", "pins": {"1": [6, 18], "2": [6, 22]}, "body": [5.550000000000001, 18.75, 6.449999999999999, 21.25]}, {"ref": "R3", "kind": "res", "value": "330Ω", "pins": {"1": [4, 8], "2": [4, 12]}, "body": [3.55, 8.75, 4.45, 11.25]}, {"ref": "U3", "kind": "opto_out", "value": "PC817", "pins": {"2": [3, 13], "1": [4, 13], "3": [3, 16], "4": [4, 16]}, "body": [2.6, 13.22, 4.4, 15.78]}, {"ref": "R6", "kind": "res", "value": "10kΩ", "pins": {"1": [2, 14], "2": [2, 18]}, "body": [1.55, 14.75, 2.45, 17.25]}, {"ref": "R15", "kind": "res", "value": "470Ω", "pins": {"1": [3, 18], "2": [3, 22]}, "body": [2.5500000000000007, 18.75, 3.4499999999999993, 21.25]}, {"ref": "J2", "kind": "term", "value": "플러그형 단자 5P 5.08 (BR-508 계열) — 버드뷰 묶음: AVM12V·RIGHT·LEFT·REAR·ACC ← 단자박스 TB1 1~5", "pins": {"REAR": [8, 24], "LEFT": [6, 24], "RIGHT": [4, 24], "AVM12V": [2, 24], "ACC": [10, 24]}, "body": [1.0, 22.7, 11.0, 25.3], "replaced": true}, {"ref": "U7", "kind": "opto_out", "value": "PC817 (AVM 켜짐 출력)", "pins": {"1": [12, 19], "2": [11, 19], "3": [11, 22], "4": [12, 22]}, "body": [10.6, 19.22, 12.4, 21.78], "added": true}, {"ref": "R21", "kind": "res", "value": "330Ω", "pins": {"1": [14, 22], "2": [14, 19]}, "body": [13.55, 19.6, 14.45, 21.4], "added": true}, {"ref": "U8", "kind": "opto_in", "value": "PC817 (차 시동 입력) — 90° 돌려 꽂음", "pins": {"1": [22, 21], "2": [22, 22], "3": [25, 22], "4": [25, 21]}, "body": [22.22, 20.6, 24.78, 22.4], "added": true}, {"ref": "R23", "kind": "res", "value": "3.3kΩ — Z행 윗면에 눕힘 (J3 플러그 앞)", "pins": {"1": [13, 26], "2": [17, 26]}, "body": [13.75, 25.55, 16.25, 26.45], "added": true}, {"ref": "D5", "kind": "diode_s", "value": "1N4148 — 눕힘", "pins": {"A": [23, 23], "K": [23, 26]}, "body": [22.62, 23.75, 23.38, 25.25], "added": true}, {"ref": "R22", "kind": "res", "value": "47kΩ — 자리만 (2026-10-28 일단 달지 않음)", "pins": {"1": [10, 26], "2": [6, 26]}, "body": [6.75, 25.55, 9.25, 26.45], "added": true, "omit": true}], "pinnet": {"J5.9": "GND", "J5.14": "GND", "J5.20": "GND", "J5.25": "GND", "J5.34": "GND", "J4.GND": "GND", "J7.GND": "GND", "J1.GND": "GND", "PS1.IN-": "GND", "PS1.OUT-": "GND", "C1.-": "GND", "J6.GND": "GND", "U4.3": "GND", "U5.3": "GND", "U6.3": "GND", "U1.2": "GND", "U2.2": "GND", "U3.2": "GND", "R4.1": "GND", "R5.1": "GND", "R6.1": "GND", "J1.+12V": "+12V", "F1.1": "+12V", "F1.2": "12V_F", "D1.A": "12V_F", "D1.K": "12V_D", "PS1.IN+": "12V_D", "PS1.OUT+": "5V", "C1.+": "5V", "J5.2": "5V", "J5.4": "5V", "J6.5V": "5V", "J5.17": "3V3_RF", "J7.VCC": "3V3_RF", "R19.2": "3V3_RF", "R20.2": "3V3_RF", "J5.29": "SCL", "J8.SCL": "SCL", "R19.1": "SCL", "J5.31": "SDA", "J8.SDA": "SDA", "R20.1": "SDA", "J5.15": "CSN", "J7.CSN": "CSN", "J5.19": "MOSI", "J7.MOSI": "MOSI", "J5.21": "MISO", "J7.MISO": "MISO", "J5.23": "SCK", "J7.SCK": "SCK", "J5.3": "BV_RX_R", "R17.1": "BV_RX_R", "R17.2": "BV_RX", "J4.RX": "BV_RX", "J5.5": "BV_TX_R", "R16.1": "BV_TX_R", "R16.2": "BV_TX", "J4.TX": "BV_TX", "J6.TX": "GPS_TX", "J5.16": "GPS_TX", "J5.18": "GPS_RX", "J6.RX": "GPS_RX", "J3.G13": "G13", "U4.2": "G13", "U5.2": "G13", "U6.2": "G13", "D2.A": "G13", "D3.A": "G13", "D4.A": "G13", "J2.AVM12V": "AVM12V", "U1.4": "AVM12V", "U2.4": "AVM12V", "U3.4": "AVM12V", "J5.22": "IN_L", "U4.4": "IN_L", "U4.1": "LED_L", "R7.1": "LED_L", "D2.K": "LED_L", "R7.2": "T_L", "J3.L": "T_L", "J5.28": "IN_R", "U5.4": "IN_R", "U5.1": "LED_R", "R8.1": "LED_R", "D3.K": "LED_R", "R8.2": "T_R", "J3.R": "T_R", "J5.32": "IN_REV", "U6.4": "IN_REV", "U6.1": "LED_REV", "R9.1": "LED_REV", "D4.K": "LED_REV", "R9.2": "T_REV", "J3.REV": "T_REV", "J5.36": "OUT_REAR", "R1.1": "OUT_REAR", "R1.2": "LEDO_REAR", "U1.1": "LEDO_REAR", "U1.3": "E_REAR", "R4.2": "E_REAR", "R13.1": "E_REAR", "R13.2": "TRIG_REAR", "J2.REAR": "TRIG_REAR", "J5.38": "OUT_LEFT", "R2.1": "OUT_LEFT", "R2.2": "LEDO_LEFT", "U2.1": "LEDO_LEFT", "U2.3": "E_LEFT", "R5.2": "E_LEFT", "R14.1": "E_LEFT", "R14.2": "TRIG_LEFT", "J2.LEFT": "TRIG_LEFT", "J5.40": "OUT_RIGHT", "R3.1": "OUT_RIGHT", "R3.2": "LEDO_RIGHT", "U3.1": "LEDO_RIGHT", "U3.3": "E_RIGHT", "R6.2": "E_RIGHT", "R15.1": "E_RIGHT", "R15.2": "TRIG_RIGHT", "J2.RIGHT": "TRIG_RIGHT", "U8.1": "LED8_A", "U8.2": "G13", "U8.3": "GND", "U8.4": "CAR_ON", "R23.1": "CAR_IN", "R23.2": "LED8_A", "D5.K": "LED8_A", "D5.A": "G13", "U7.1": "LED7_A", "U7.2": "GND", "U7.3": "ACC", "U7.4": "AVM12V", "R21.1": "AVM_ON", "R21.2": "LED7_A", "J5.35": "AVM_ON", "J5.37": "CAR_ON", "R22.1": "ACC", "R22.2": "GND", "J2.ACC": "ACC", "J3.CAR": "CAR_IN"}, "runs": [{"a": [27, 21], "b": [28, 21], "net": "+12V"}, {"a": [29, 23], "b": [30, 23], "net": "12V_F"}, {"a": [16, 24], "b": [17, 24], "net": "T_R"}, {"a": [8, 24], "b": [9, 24], "net": "TRIG_REAR"}, {"a": [3, 24], "b": [4, 24], "net": "TRIG_RIGHT"}, {"a": [11, 3], "b": [12, 3], "net": "SDA"}, {"a": [9, 1], "b": [19, 1], "net": "3V3_RF"}, {"a": [7, 3], "b": [9, 3], "net": "3V3_RF"}, {"a": [22, 8], "b": [27, 8], "net": "5V"}, {"a": [18, 10], "b": [21, 10], "net": "GND"}, {"a": [23, 1], "b": [28, 1], "net": "GND"}, {"a": [28, 21], "b": [28, 24], "net": "+12V"}, {"a": [29, 21], "b": [29, 23], "net": "12V_F"}, {"a": [30, 1], "b": [30, 3], "net": "BV_RX"}, {"a": [29, 1], "b": [29, 2], "net": "BV_TX"}, {"a": [19, 22], "b": [19, 24], "net": "T_L"}, {"a": [16, 22], "b": [16, 24], "net": "T_R"}, {"a": [9, 22], "b": [9, 24], "net": "TRIG_REAR"}, {"a": [6, 22], "b": [6, 24], "net": "TRIG_LEFT"}, {"a": [3, 22], "b": [3, 24], "net": "TRIG_RIGHT"}, {"a": [9, 16], "b": [9, 18], "net": "E_REAR"}, {"a": [6, 16], "b": [6, 18], "net": "E_LEFT"}, {"a": [3, 16], "b": [3, 18], "net": "E_RIGHT"}, {"a": [9, 1], "b": [9, 4], "net": "3V3_RF"}, {"a": [22, 8], "b": [22, 9], "net": "5V"}, {"a": [21, 15], "b": [21, 24], "net": "G13"}, {"a": [6, 13], "b": [6, 14], "net": "GND"}, {"a": [12, 3], "b": [12, 5], "net": "SDA"}, {"a": [13, 3], "b": [13, 5], "net": "SCL"}, {"a": [15, 2], "b": [15, 5], "net": "GND"}, {"a": [16, 2], "b": [16, 5], "net": "SCK"}, {"a": [17, 2], "b": [17, 5], "net": "MISO"}, {"a": [18, 2], "b": [18, 5], "net": "MOSI"}, {"a": [19, 1], "b": [19, 5], "net": "3V3_RF"}, {"a": [20, 2], "b": [20, 5], "net": "CSN"}, {"a": [23, 1], "b": [23, 5], "net": "GND"}, {"a": [25, 2], "b": [25, 5], "net": "BV_TX_R"}, {"a": [26, 3], "b": [26, 5], "net": "BV_RX_R"}, {"a": [21, 6], "b": [21, 14], "net": "GND"}, {"a": [20, 6], "b": [20, 9], "net": "GPS_TX"}, {"a": [19, 6], "b": [19, 9], "net": "GPS_RX"}, {"a": [18, 6], "b": [18, 10], "net": "GND"}, {"a": [17, 6], "b": [17, 12], "net": "IN_L"}, {"a": [14, 6], "b": [14, 12], "net": "IN_R"}, {"a": [12, 6], "b": [12, 13], "net": "IN_REV"}, {"a": [11, 6], "b": [11, 14], "net": "GND"}, {"a": [10, 6], "b": [10, 8], "net": "OUT_REAR"}, {"a": [7, 7], "b": [9, 7], "net": "OUT_LEFT"}, {"a": [7, 7], "b": [7, 8], "net": "OUT_LEFT"}, {"a": [4, 6], "b": [8, 6], "net": "OUT_RIGHT"}, {"a": [4, 6], "b": [4, 8], "net": "OUT_RIGHT"}, {"a": [27, 6], "b": [27, 8], "net": "5V"}, {"a": [17, 12], "b": [18, 12], "net": "IN_L"}, {"a": [18, 12], "b": [18, 13], "net": "IN_L"}, {"a": [19, 13], "b": [19, 14], "net": "GND"}, {"a": [19, 15], "b": [19, 16], "net": "G13"}, {"a": [18, 16], "b": [18, 18], "net": "LED_L"}, {"a": [18, 18], "b": [20, 18], "net": "LED_L"}, {"a": [14, 12], "b": [15, 12], "net": "IN_R"}, {"a": [15, 12], "b": [15, 13], "net": "IN_R"}, {"a": [16, 13], "b": [16, 14], "net": "GND"}, {"a": [16, 15], "b": [16, 16], "net": "G13"}, {"a": [15, 16], "b": [15, 18], "net": "LED_R"}, {"a": [15, 18], "b": [17, 18], "net": "LED_R"}, {"a": [13, 13], "b": [13, 14], "net": "GND"}, {"a": [13, 15], "b": [13, 16], "net": "G13"}, {"a": [13, 15], "b": [21, 15], "net": "G13"}, {"a": [12, 16], "b": [12, 18], "net": "LED_REV"}, {"a": [12, 18], "b": [14, 18], "net": "LED_REV"}, {"a": [10, 12], "b": [10, 13], "net": "LEDO_REAR"}, {"a": [8, 18], "b": [9, 18], "net": "E_REAR"}, {"a": [10, 16], "b": [10, 19], "net": "AVM12V"}, {"a": [9, 13], "b": [9, 14], "net": "GND"}, {"a": [7, 12], "b": [7, 13], "net": "LEDO_LEFT"}, {"a": [5, 18], "b": [6, 18], "net": "E_LEFT"}, {"a": [7, 16], "b": [7, 19], "net": "AVM12V"}, {"a": [4, 12], "b": [4, 13], "net": "LEDO_RIGHT"}, {"a": [2, 18], "b": [3, 18], "net": "E_RIGHT"}, {"a": [2, 19], "b": [2, 24], "net": "AVM12V"}, {"a": [2, 19], "b": [10, 19], "net": "AVM12V"}, {"a": [4, 16], "b": [4, 19], "net": "AVM12V"}, {"a": [3, 13], "b": [3, 14], "net": "GND"}, {"a": [2, 14], "b": [21, 14], "net": "GND"}, {"a": [24, 8], "b": [24, 11], "net": "5V"}, {"a": [25, 8], "b": [25, 9], "net": "5V"}, {"a": [27, 9], "b": [29, 9], "net": "GND"}, {"a": [29, 9], "b": [29, 12], "net": "GND"}, {"a": [21, 12], "b": [29, 12], "net": "GND"}, {"a": [26, 19], "b": [29, 19], "net": "GND"}, {"a": [26, 19], "b": [26, 24], "net": "GND"}, {"a": [22, 12], "b": [22, 20], "net": "GND"}, {"a": [22, 20], "b": [26, 20], "net": "GND"}, {"a": [30, 18], "b": [30, 19], "net": "12V_D"}, {"a": [24, 18], "b": [30, 18], "net": "12V_D"}, {"a": [24, 18], "b": [24, 19], "net": "12V_D"}, {"a": [9, 6], "b": [9, 7], "net": "OUT_LEFT"}, {"a": [26, 6], "b": [27, 6], "net": "5V"}, {"a": [11, 14], "b": [11, 19], "net": "GND", "added": true}, {"a": [11, 22], "b": [11, 23], "net": "ACC", "added": true}, {"a": [11, 23], "b": [10, 23], "net": "ACC", "added": true}, {"a": [10, 23], "b": [10, 24], "net": "ACC", "added": true}, {"a": [10, 19], "b": [10, 21], "net": "AVM12V", "added": true}, {"a": [10, 21], "b": [12, 21], "net": "AVM12V", "added": true}, {"a": [12, 21], "b": [12, 22], "net": "AVM12V", "added": true}, {"a": [12, 19], "b": [14, 19], "net": "LED7_A", "added": true}, {"a": [25, 22], "b": [26, 22], "net": "GND", "added": true}, {"a": [22, 21], "b": [24, 21], "net": "LED8_A", "added": true}, {"a": [24, 21], "b": [24, 26], "net": "LED8_A", "added": true}, {"a": [17, 26], "b": [24, 26], "net": "LED8_A", "added": true}, {"a": [21, 22], "b": [22, 22], "net": "G13", "added": true}, {"a": [22, 22], "b": [22, 23], "net": "G13", "added": true}, {"a": [22, 23], "b": [23, 23], "net": "G13", "added": true}, {"a": [10, 24], "b": [10, 26], "net": "ACC", "added": true}, {"a": [1, 14], "b": [2, 14], "net": "GND", "added": true}, {"a": [1, 14], "b": [1, 26], "net": "GND", "added": true}, {"a": [1, 26], "b": [6, 26], "net": "GND", "added": true}, {"a": [13, 24], "b": [13, 26], "net": "CAR_IN", "added": true}, {"a": [13, 22], "b": [13, 23], "net": "T_REV", "added": true}, {"a": [13, 23], "b": [15, 23], "net": "T_REV", "added": true}, {"a": [15, 23], "b": [15, 24], "net": "T_REV", "added": true}], "jumpers": [{"a": [10, 5], "b": [14, 22], "net": "AVM_ON", "added": true}, {"a": [9, 5], "b": [25, 21], "net": "CAR_ON", "added": true}], "bridges": [], "removed": [{"a": [13, 24], "b": [15, 24], "net": "T_REV"}, {"a": [13, 22], "b": [13, 24], "net": "T_REV"}], "touch": [[2, 14], [9, 5], [10, 5], [10, 19], [11, 14], [13, 22], [15, 24], [21, 22], [26, 22]]};
+const NET = {
+  "GND":["GND (공통)","gnd"], "+12V":["+12V 입력","p12"], "12V_F":["+12V (퓨즈 뒤)","p12"], "12V_D":["+12V (다이오드 뒤)","p12"],
+  "5V":["5V","p5"], "3V3_RF":["3.3V (핀 17 → CC1101·I2C 풀업)","p33"], "AVM12V":["버드뷰 12V (J2 AVM)","avm"],
+  "CSN":["CSN (핀 15, GPIO)","spi"], "MOSI":["MOSI (핀 19)","spi"], "MISO":["MISO (핀 21)","spi"], "SCK":["SCK (핀 23)","spi"],
+  "GPS_TX":["GPS TX → 핀 16","gps"], "GPS_RX":["핀 18 → GPS RX","gps"], "SCL":["나침반 SCL (핀 29)","gps"], "SDA":["나침반 SDA (핀 31)","gps"],
+  "BV_RX_R":["핀 3 → R17","bv"], "BV_RX":["R17 → J4 RX","bv"], "BV_TX_R":["핀 5 → R16","bv"], "BV_TX":["R16 → J4 TX","bv"],
+  "G13":["13핀 GND (절연)","iso"],
+  "IN_L":["U4 → 핀 22 (좌 깜빡이)","in"], "IN_R":["U5 → 핀 28 (우 깜빡이)","in"], "IN_REV":["U6 → 핀 32 (후진)","in"],
+  "LED_L":["U4 LED (좌)","iso"], "LED_R":["U5 LED (우)","iso"], "LED_REV":["U6 LED (후진)","iso"],
+  "T_L":["J3 L → R7","iso"], "T_R":["J3 R → R8","iso"], "T_REV":["J3 REV → R9","iso"],
+  "OUT_REAR":["핀 36 → R1 (후방)","out"], "OUT_LEFT":["핀 38 → R2 (좌측)","out"], "OUT_RIGHT":["핀 40 → R3 (우측)","out"],
+  "LEDO_REAR":["R1 → U1 LED","out"], "LEDO_LEFT":["R2 → U2 LED","out"], "LEDO_RIGHT":["R3 → U3 LED","out"],
+  "E_REAR":["U1 이미터","trig"], "E_LEFT":["U2 이미터","trig"], "E_RIGHT":["U3 이미터","trig"],
+  "TRIG_REAR":["후방 트리거 → J2","trig"], "TRIG_LEFT":["좌측 트리거 → J2","trig"], "TRIG_RIGHT":["우측 트리거 → J2","trig"],
+  "AVM_ON":["핀 35 → R21 (AVM 켜짐, 피복선)","out"], "LED7_A":["R21 → U7 LED","out"],
+  "ACC":["U7 → J2 ACC (버드뷰 ACC_IN)","avm"],
+  "CAR_ON":["U8 → 핀 37 (차 시동 입력, 피복선)","in"],
+  "CAR_IN":["J3 CAR (차 시동 12V) → R23","iso"], "LED8_A":["R23 → U8 LED","iso"],
+};
+const HDR = {2:"5V",3:"UART3_RX",4:"5V",5:"UART3_TX",9:"GND",14:"GND",15:"GPIO3_B0",16:"UART4_RX",17:"3.3V",18:"UART4_TX",
+  19:"SPI3_MOSI",20:"GND",21:"SPI3_MISO",22:"GPIO3_C1",23:"SPI3_CLK",25:"GND",28:"GPIO4_B3",29:"I2C5_SCL",31:"I2C5_SDA",32:"GPIO3_C2",34:"GND",35:"GPIO (AVM 켜짐 출력)",37:"GPIO (차 시동 입력)",
+  36:"GPIO3_A7",38:"GPIO3_A6",40:"GPIO3_A5"};
+const PINNAME = {opto_in:{1:"A",2:"K",3:"E",4:"C"},opto_out:{1:"A",2:"K",3:"E",4:"C"}};
+// 열 이름: 기판 위쪽 실크는 오른쪽 끝부터 A~Z, 다시 A~E. 두 번째 바퀴는 A′~E′로 적는다
+const CSEQ = [..."ABCDEFGHIJKLMNOPQRSTUVWXYZ", ..."ABCDE".split("").map(x=>x+"′")];
+const R = D.rowNames, CN = c => CSEQ[D.cols - c], hn = (c,r)=>`${CN(c)}-${R[r-1]}`;
+const S = 20, OX = 12.5, OY = 7.4;         // 화면 단위: 구멍 간격 S px, 기판 왼쪽 위 여백
+const BOARD = {x0:-1.7, y0:-0.28, x1:33.7, y1:27.28};   // 90×70mm
+let view = "top", sel = "", overlay = false, newOnly = true;
+
+const holeInfo = {};
+for (const p of D.parts) for (const [pin,[c,r]] of Object.entries(p.pins)) {
+  const key = `${p.ref}.${pin}`;
+  let pn = pin;
+  if (p.ref === "J5") pn = `${pin}번${HDR[pin] ? " "+HDR[pin] : ""}`;
+  else if (PINNAME[p.kind]) pn = `${pin}(${PINNAME[p.kind][pin]})`;
+  holeInfo[`${c},${r}`] = {ref:p.ref, pin, label:`${p.ref} ${pn}`, net:D.pinnet[key] || ""};
+}
+const traceNet = {};
+for (const e of D.runs){ const [ac,ar]=e.a,[bc,br]=e.b; for (let c=Math.min(ac,bc);c<=Math.max(ac,bc);c++) for (let r=Math.min(ar,br);r<=Math.max(ar,br);r++) traceNet[`${c},${r}`]=e.net; }
+// 2026-10-25에 더하는 것 (AVM 켜짐·차 시동). added = 새 부품·맨선·피복선, touch = 기존 납땜점에 이어 붙이는 구멍
+const NEWHOLE = new Set(), TOUCH = new Set((D.touch||[]).map(([c,r])=>`${c},${r}`));
+for (const p of D.parts) if (p.added || p.replaced) for (const [c,r] of Object.values(p.pins)) NEWHOLE.add(`${c},${r}`);
+for (const e of D.runs) if (e.added){ const [ac,ar]=e.a,[bc,br]=e.b; for (let c=Math.min(ac,bc);c<=Math.max(ac,bc);c++) for (let r=Math.min(ar,br);r<=Math.max(ar,br);r++) NEWHOLE.add(`${c},${r}`); }
+for (const j of D.jumpers) for (const [c,r] of [j.a,j.b]) NEWHOLE.add(`${c},${r}`);
+const cx = c => view === "bot" ? D.cols + 1 - c : c;
+const X = c => (cx(c) + OX) * S, Y = r => (r + OY) * S;
+const ns = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text){ const e=document.createElementNS(ns,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(text!=null) e.textContent=text; parent&&parent.appendChild(e); return e; }
+const col = n => `var(--n-${(NET[n]||["",""])[1]||"gnd"})`;
+function rectXY(x0,y0,x1,y1){ const a=X(x0), b=X(x1); return {x:Math.min(a,b), y:Y(y0), width:Math.abs(b-a), height:Y(y1)-Y(y0)}; }
+
+function draw(){
+  const svg = document.getElementById("svg"); svg.innerHTML = "";
+  const W = (D.cols + 1 + 2*OX) * S, H = (BOARD.y1 + OY + 1.6) * S;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  document.getElementById("viewnote").textContent = view === "bot" ? "뒷면: A열이 왼쪽, A′~E′열이 오른쪽" : "윗면: A열이 오른쪽, A′~E′열이 왼쪽";
+  // 기판
+  el("rect", {...rectXY(BOARD.x0,BOARD.y0,BOARD.x1,BOARD.y1), rx:6, fill:"var(--board)", stroke:"var(--board-edge)", "stroke-width":2}, svg);
+  // Radxa (판 아래)
+  { const RX = {x0:4.7, y0:-4.93, x1:30.3, y1:6.88};
+    const rr = rectXY(RX.x0,RX.y0,RX.x1,RX.y1);
+    el("rect", {...rr, rx:8, fill:"color-mix(in srgb, var(--n-spi) 5%, transparent)", stroke:"var(--n-spi)", "stroke-width":1.6, "stroke-dasharray":"7 5"}, svg);
+    const lx = rr.x + rr.width/2, ly = Y(-3.1);
+    el("text", {x:lx, y:ly, "text-anchor":"middle", "font-size":12, fill:"var(--n-spi)", "font-weight":500}, svg, view==="bot" ? "Radxa Zero 3W (반대편 윗면 위 2층)" : "Radxa Zero 3W (2층, 약 11mm 위)");
+    el("text", {x:lx, y:ly+16, "text-anchor":"middle", "font-size":10, fill:"var(--muted)"}, svg, "부품면이 위 · 판 위쪽 가장자리 밖으로 약 1cm");
+  }
+  // 축 라벨
+  const ax = el("g", {fill:"var(--muted)", "font-size":9.5, "text-anchor":"middle"}, svg);
+  for (let c=1;c<=D.cols;c++){ el("text",{x:X(c),y:Y(BOARD.y0)-6},ax,CN(c)); el("text",{x:X(c),y:Y(BOARD.y1)+13},ax,CN(c)); }
+  const bl = Math.min(X(BOARD.x0), X(BOARD.x1)), br = Math.max(X(BOARD.x0), X(BOARD.x1));
+  for (let r=1;r<=D.rows;r++){ el("text",{x:bl-10,y:Y(r)+3.5},ax,R[r-1]); el("text",{x:br+10,y:Y(r)+3.5},ax,R[r-1]); }
+  const gParts = el("g", {}, null), gWires = el("g", {}, null), gPads = el("g", {}, null);
+  // 패드
+  for (let c=1;c<=D.cols;c++) for (let r=1;r<=D.rows;r++){
+    let info = holeInfo[`${c},${r}`];
+    if (!info && traceNet[`${c},${r}`]) info = {label:"배선만 지나감", net:traceNet[`${c},${r}`], wire:true};
+    const g = el("g", {class:"fade"}, gPads);
+    if (sel && (!info || info.net !== sel)) g.setAttribute("opacity", info ? "var(--dim)" : .35);
+    else if (!sel && newOnly && !NEWHOLE.has(`${c},${r}`)) g.setAttribute("opacity", .3);
+    const pad = el("circle", {cx:X(c), cy:Y(r), r: info ? 6.2 : 5.2, fill: info ? "var(--pad-used)" : "var(--pad)", class:"pad"+(info&&sel&&info.net===sel?" sel":"")}, g);
+    el("circle", {cx:X(c), cy:Y(r), r: info ? 2.2 : 2.4, fill: info ? "var(--solder)" : "var(--hole)"}, g);
+    const t = info ? `${hn(c,r)} · ${info.label}${info.net ? " · "+(NET[info.net]?NET[info.net][0]:info.net) : " · 연결 없음"}` : hn(c,r);
+    el("title", {}, g, t);
+    if (info && info.net){ g.style.cursor="pointer"; g.addEventListener("click", ()=>setSel(sel===info.net?"":info.net)); }
+    if (newOnly && TOUCH.has(`${c},${r}`)){
+      const ring = el("circle", {cx:X(c), cy:Y(r), r:10.5, fill:"none", stroke:"var(--accent)", "stroke-width":2.4, "stroke-dasharray":"4 2.5"}, gPads);
+      el("title", {}, ring, `${hn(c,r)} · 기존 납땜점에 새 선을 이어 붙인다`);
+    }
+  }
+  // 부품
+  const showParts = view === "top";
+  const pa = showParts ? 1 : .22;
+  for (const p of D.parts){
+    const base = p.kind === "socket" ? 1 : pa;
+    drawPart(p, gParts, newOnly && !p.added ? Math.min(base, p.kind === "socket" ? .45 : .25) : base);
+    if (newOnly && (p.added || p.replaced)){
+      const [x0,y0,x1,y1] = p.body; const rr = rectXY(x0-.3, y0-.3, x1+.3, y1+.3);
+      const box = el("rect", {...rr, rx:6, fill:"none", stroke:"var(--accent)", "stroke-width":2.2, "stroke-dasharray": p.replaced ? "2 3" : "6 3"}, gParts);
+      el("title", {}, box, `${p.replaced ? "교체 (4P → 5P)" : "추가"}: ${p.ref} · ${p.value}`);
+      if (p.replaced) lbl(gParts, rr.x + rr.width/2, rr.y - 8, `${p.ref} 4P → 5P 교체`, 9.5, "var(--accent)");
+    }
+  }
+  // 배선
+  if (view === "bot" || overlay || newOnly){
+    for (const e of D.runs){
+      if (view === "top" && !overlay && !(newOnly && e.added)) continue;
+      const op = sel && e.net !== sel ? "var(--dim)" : (newOnly && !e.added ? .15 : (view==="top" && !e.added ? .6 : 1));
+      const [ac,ar] = e.a, [bc,br] = e.b;
+      el("line", {x1:X(ac),y1:Y(ar),x2:X(bc),y2:Y(br), stroke:"var(--bg)", "stroke-width":8, "stroke-linecap":"round", opacity:op}, gWires);
+      const ln = el("line", {x1:X(ac),y1:Y(ar),x2:X(bc),y2:Y(br), stroke:col(e.net), "stroke-width":5, "stroke-linecap":"round", opacity:op}, gWires);
+      el("title", {}, ln, `${hn(ac,ar)} → ${hn(bc,br)} · ${NET[e.net]?NET[e.net][0]:e.net}`);
+      ln.style.cursor = "pointer"; ln.addEventListener("click", ()=>setSel(sel===e.net?"":e.net));
+    }
+  }
+  // 떼어 낼 기존 맨선 (빨간 점선)
+  if (newOnly) for (const e of (D.removed||[])){
+    const [ac,ar] = e.a, [bc,br] = e.b;
+    const ln = el("line", {x1:X(ac),y1:Y(ar),x2:X(bc),y2:Y(br), stroke:"var(--n-p5)", "stroke-width":4, "stroke-linecap":"round", "stroke-dasharray":"3 4"}, gWires);
+    el("title", {}, ln, `떼어 낸다: ${hn(ac,ar)} → ${hn(bc,br)} · ${NET[e.net]?NET[e.net][0]:e.net}`);
+    const mx=(X(ac)+X(bc))/2, my=(Y(ar)+Y(br))/2;
+    el("path", {d:`M${mx-5} ${my-5}L${mx+5} ${my+5}M${mx+5} ${my-5}L${mx-5} ${my+5}`, stroke:"var(--n-p5)", "stroke-width":2.4}, gWires);
+  }
+  // 피복선 점퍼 — 맨선 위를 지나가도 된다. 굽은 선으로 구분한다
+  if (view === "bot" || overlay || newOnly){
+    for (const j of D.jumpers){
+      const op = sel && j.net !== sel ? "var(--dim)" : 1;
+      const [ac,ar] = j.a, [bc,br] = j.b, mx = (X(ac)+X(bc))/2, my = Math.min(Y(ar),Y(br)) - (2.2 + 1.2*D.jumpers.indexOf(j))*S;  // 여러 가닥이면 높이를 달리해 구분
+      const d = `M${X(ac)} ${Y(ar)} Q${mx} ${my} ${X(bc)} ${Y(br)}`;
+      el("path", {d, fill:"none", stroke:"var(--bg)", "stroke-width":7, "stroke-linecap":"round", opacity:op}, gWires);
+      const ln = el("path", {d, fill:"none", stroke:col(j.net), "stroke-width":3.5, "stroke-linecap":"round", "stroke-dasharray":"8 4", opacity:op}, gWires);
+      el("title", {}, ln, `피복선 점퍼 ${hn(ac,ar)} → ${hn(bc,br)} · ${NET[j.net]?NET[j.net][0]:j.net}`);
+      ln.style.cursor = "pointer"; ln.addEventListener("click", ()=>setSel(sel===j.net?"":j.net));
+    }
+  }
+  // 윗면 브리지 (J5 → 옆 구멍)
+  const gBr = el("g", {}, null);
+  for (const b of D.bridges){
+    const op = sel && b.net !== sel ? "var(--dim)" : (view==="top" ? 1 : .35);
+    const [ac,ar]=b.a, [bc,br]=b.b;
+    el("line", {x1:X(ac),y1:Y(ar),x2:X(bc),y2:Y(br), stroke:"var(--bg)", "stroke-width":9, "stroke-linecap":"round", opacity:op}, gBr);
+    const ln = el("line", {x1:X(ac),y1:Y(ar),x2:X(bc),y2:Y(br), stroke:col(b.net), "stroke-width":6, "stroke-linecap":"round", opacity:op, "stroke-dasharray": view==="top" ? "" : "3 3"}, gBr);
+    el("title", {}, ln, `윗면 브리지 ${hn(ac,ar)} → ${hn(bc,br)} · ${NET[b.net]?NET[b.net][0]:b.net}`);
+    ln.style.cursor = "pointer"; ln.addEventListener("click", ()=>setSel(sel===b.net?"":b.net));
+  }
+  if (ckOn) for (const gg of [gPads, gParts, gBr, gWires]) gg.setAttribute("opacity", .5);
+  if (view === "top"){ svg.appendChild(gPads); svg.appendChild(gParts); svg.appendChild(gBr); svg.appendChild(gWires); }
+  else { svg.appendChild(gParts); svg.appendChild(gPads); svg.appendChild(gBr); svg.appendChild(gWires); }
+  if (ckOn) drawProbes(svg);
+}
+
+function lbl(g, x, y, t, size=10, fill="var(--fg)", rot=0){
+  const a = {x, y, "font-size":size, "text-anchor":"middle", "dominant-baseline":"central", fill, "font-weight":500};
+  if (rot) a.transform = `rotate(${rot} ${x} ${y})`;
+  return el("text", a, g, t);
+}
+function drawPart(p, parent, alpha){
+  const g = el("g", {opacity:alpha}, parent);
+  const pins = Object.values(p.pins), [x0,y0,x1,y1] = p.body, rc = rectXY(x0,y0,x1,y1);
+  const midx = rc.x + rc.width/2, midy = rc.y + rc.height/2;
+  const lead = (a,b)=>el("line",{x1:X(a[0]),y1:Y(a[1]),x2:X(b[0]),y2:Y(b[1]),stroke:"var(--solder)","stroke-width":2},g);
+  const k = p.kind;
+  if (sel){ const on = Object.keys(p.pins).some(pin => D.pinnet[`${p.ref}.${pin}`] === sel); if (!on) g.setAttribute("opacity", alpha*0.35); }
+  el("title", {}, g, `${p.ref} · ${p.value}`);
+  if (p.omit){
+    el("rect", {...rc, rx: Math.min(rc.width,rc.height)/2.4, fill:"none", stroke:"var(--muted)", "stroke-width":1.2, "stroke-dasharray":"3 3"}, g);
+    el("path", {d:`M${midx-6} ${midy-6}L${midx+6} ${midy+6}M${midx+6} ${midy-6}L${midx-6} ${midy+6}`, stroke:"var(--n-p5)", "stroke-width":2}, g);
+    lbl(g, midx, midy - 13, `${p.ref} 빼 둠`, 8.5, "var(--muted)");
+    return;
+  }
+  if (k === "res" || k === "diode" || k === "diode_s"){
+    lead(pins[0], pins[1]);
+    const fill = k === "res" ? "var(--body-res)" : (k === "diode" ? "var(--body-dark)" : "#c23b2a");
+    el("rect", {...rc, rx: Math.min(rc.width,rc.height)/2.4, fill, stroke:"var(--body-dark)", "stroke-width":.8}, g);
+    if (k !== "res"){ // 캐소드 띠
+      const K = p.pins.K, vert = pins[0][0] === pins[1][0];
+      const t = 3.2;
+      if (vert){ const yy = Y(K[1]) > midy ? rc.y+rc.height-t-3 : rc.y+3; el("rect",{x:rc.x,y:yy,width:rc.width,height:t,fill:"var(--body-white)"},g); }
+      else { const xx = X(K[0]) > midx ? rc.x+rc.width-t-3 : rc.x+3; el("rect",{x:xx,y:rc.y,width:t,height:rc.height,fill:"var(--body-white)"},g); }
+    }
+    const vert = pins[0][0] === pins[1][0];
+    lbl(g, vert ? midx + 14 : midx, vert ? midy : midy - 13, p.ref, 8.5, "var(--fg)", vert ? -90 : 0);
+    lbl(g, midx, midy, p.value.replace("Ω",""), 7.5, k==="res"?"#2b2b2e":"#fff", vert ? -90 : 0);
+  } else if (k.startsWith("opto")){
+    el("rect", {...rc, rx:2, fill:"var(--body-dark)"}, g);
+    const p1 = p.pins["1"]; el("circle", {cx:X(p1[0]) + (X(p1[0])<midx?5:-5), cy:Y(p1[1]) + (Y(p1[1])<midy?6:-6), r:2.6, fill:"#ddd"}, g);
+    lbl(g, midx, midy-6, p.ref, 10, "#fff"); lbl(g, midx, midy+7, "PC817", 7, "#bbb");
+  } else if (k === "socket"){
+    const solid = view === "top";
+    g.setAttribute("opacity", solid ? 1 : 1);
+    el("rect", {...rc, rx:3, fill: solid ? "var(--body-dark)" : "none", stroke: solid ? "#111" : "var(--fg)", "stroke-width":1.4, "stroke-dasharray": solid ? "" : "6 4"}, g);
+    if (solid) for (const [pin,[c,r]] of Object.entries(p.pins)) el("rect",{x:X(c)-2.6,y:Y(r)-2.6,width:5.2,height:5.2,fill: pin==="1" ? "#ffd84d" : "#555"},g);
+    const p1 = p.pins["1"];
+    lbl(g, X(p1[0]) + (view==="bot"?-15:15), Y(p1[1]), "■1", 9, "#d9a400");
+    lbl(g, X(5.2), Y(5) - 1, "J5", 11, "var(--fg)");
+    lbl(g, X(5.2), Y(5) + 11, solid ? "암 소켓" : "윗면 소켓", 8, "var(--muted)");
+  } else if (k === "boxheader"){
+    el("rect", {...rc, rx:3, fill:"var(--body-dark)"}, g);
+    el("rect", {x:rc.x+8, y:rc.y+6, width:rc.width-16, height:rc.height-12, rx:2, fill:"none", stroke:"#555", "stroke-width":1}, g);
+    el("rect", {x:midx-18, y:rc.y-1, width:36, height:7, fill:"var(--board)"}, g); // 키 홈
+    lbl(g, midx, rc.y-9, "J5 · 키 홈 ↑ · Radxa로 가는 40핀 리본", 9.5, "var(--fg)");
+    for (const [pin,[c,r]] of Object.entries(p.pins)){ el("rect",{x:X(c)-3,y:Y(r)-3,width:6,height:6,fill: pin==="1" ? "#ffd84d" : "#c9a14a"},g); }
+    const p1 = p.pins["1"]; lbl(g, X(p1[0]) + (view==="bot"?14:-14), Y(p1[1]), "■1", 9, "#ffd84d");
+  } else if (k === "cc1101"){
+    el("rect", {...rc, rx:2, fill:"var(--body-dark)"}, g);
+    const m = rectXY(28.3, 0.55, 40.2, 6.45);
+    el("rect", {...m, rx:4, fill:"none", stroke:"var(--n-spi)", "stroke-width":1.5, "stroke-dasharray":"6 4"}, g);
+    const sx = view==="bot" ? m.x - 22 : m.x + m.width; el("rect", {x:sx, y:m.y+m.height/2-7, width:22, height:14, rx:2, fill:"#c9a14a"}, g);
+    lbl(g, m.x + m.width/2, m.y + m.height/2 - 8, "CC1101 모듈 (기판 밖으로)", 10, "var(--n-spi)");
+    lbl(g, m.x + m.width/2, m.y + m.height/2 + 8, "SMA → 안테나", 9, "var(--muted)");
+    lbl(g, midx, rc.y + rc.height + 9, "J7", 9.5);
+  } else if (k === "term"){
+    el("rect", {...rc, rx:2, fill:"var(--body-blue)"}, g);
+    for (const [pin,[c,r]] of Object.entries(p.pins)){
+      el("circle",{cx:X(c),cy:Y(r)-8,r:5.5,fill:"#cfd6de",stroke:"#7b8794"},g);
+      el("line",{x1:X(c)-3.5,y1:Y(r)-8,x2:X(c)+3.5,y2:Y(r)-8,stroke:"#555","stroke-width":1.2},g);
+      lbl(g, X(c), Y(r)+11, pin, 7.5, "#fff");
+    }
+    lbl(g, midx, rc.y + rc.height + 9, p.ref, 9.5);
+  } else if (k === "xh" || k === "pinhdr"){
+    el("rect", {...rc, rx:1.5, fill: k==="xh" ? "var(--body-white)" : "var(--body-dark)", stroke:"var(--body-dark)", "stroke-width":.8}, g);
+    for (const [pin,[c,r]] of Object.entries(p.pins)) lbl(g, X(c), Y(r) + (k==="xh"? 13 : 12), pin, 7, k==="xh"?"#333":"var(--fg)");
+    if (p.ref === "J8") lbl(g, X(14.4), Y(3), p.ref, 9.5);
+    else lbl(g, midx, k==="xh" ? rc.y - 7 : rc.y - 8, p.ref, 9.5);
+  } else if (k === "module"){
+    el("rect", {...rc, rx:3, fill:"color-mix(in srgb, var(--n-spi) 10%, transparent)", stroke:"var(--n-spi)", "stroke-width":1.3, "stroke-dasharray":"5 3"}, g);
+    lbl(g, midx, midy-14, "PS1", 11); lbl(g, midx, midy+2, "MP1584", 9.5); lbl(g, midx, midy+16, "5.0V로 조정", 8.5, "var(--muted)");
+    for (const [pin,[c,r]] of Object.entries(p.pins)) lbl(g, X(c) + (cx(c) < (cx(2)+cx(7))/2 ? 1 : -1)*0, Y(r) + (r < 14 ? 13 : -13), pin, 8, "var(--fg)");
+  } else if (k === "ecap"){
+    const c = el("circle", {cx:midx, cy:midy, r:rc.width/2, fill:"#24324a", stroke:"#111"}, g);
+    const neg = p.pins["-"]; const nx = X(neg[0]);
+    el("rect", {x: nx < midx ? rc.x+2 : midx+rc.width/2-12, y: midy - rc.height/2 + 6, width:10, height:rc.height-12, fill:"#bfc6d4", rx:2}, g);
+    lbl(g, midx, midy-4, "C1", 9.5, "#fff"); lbl(g, midx, midy+8, "470µF", 7, "#ccc");
+    lbl(g, X(p.pins["+"][0]), Y(p.pins["+"][1]) + 12, "+", 9, "var(--fg)");
+  } else if (k === "ptc"){
+    lead(pins[0], pins[1]);
+    el("rect", {...rc, rx:rc.height/2, fill:"#e3b23c", stroke:"#8a6a1b"}, g);
+    lbl(g, midx, midy, "F1", 8.5, "#3a2a00"); lbl(g, midx, midy - 15, "PTC 1.1A", 8, "var(--fg)");
+  } else if (k === "cap"){
+    lead(pins[0], pins[1]);
+    el("rect", {...rc, rx:rc.height/2, fill:"#d98b2b", stroke:"#8a5a1b"}, g);
+    lbl(g, midx, rc.y - 7, "C2 100nF", 8, "var(--fg)");
+  }
+}
+
+// ---- 첫 연결 점검 (2026-10-28). p = 짚을 곳: ["+"|"-"|"in+"|"in-"|"look", "부품.핀" 또는 [열,행], 이름표]
+//      side "bot" = 판 뒷면 패드에서 짚는다 (Radxa를 꽂은 뒤 J5 소켓 핀은 위에서 닿지 않는다)
+const CHECKS = [
+ {ph:"A", title:"연결 전 — Radxa를 빼 둔 상태", lead:"판만 따로 본다. 외부 단자 J2·J3·J4·J6·J7·J8은 모두 뺀다.", groups:[
+  {t:"1. 눈으로 보기", items:[
+   {id:"a-opto", t:"PC817 8개(U1~U8)의 1번 핀 점 방향. 입력 U4~U6은 LED가 아래, 출력 U1~U3·U7은 LED가 위, U8은 90° 돌려 LED가 G13 쪽", p:[["look","U1.1"],["look","U2.1"],["look","U3.1"],["look","U4.1"],["look","U5.1"],["look","U6.1"],["look","U7.1"],["look","U8.1"]]},
+   {id:"a-diode", t:"다이오드 띠(캐소드) 방향 D1~D5, C1 470µF 극성", p:[["look","D1.K"],["look","D2.K"],["look","D3.K"],["look","D4.K"],["look","D5.K"],["look","C1.+"]]},
+   {id:"a-bridge", t:"땜납 번짐 — 이웃끼리 붙으면 안 되는 곳: `W-E`(핀 37)↔`W-D`(3.3V), `V-X`(ACC)↔`W-X`(후방), `S-X`(CAR)↔`S-W`(후진). J5 E·F행 패드 사이 전체도", side:"bot", p:[["look",[9,5]],["look",[9,4]],["look",[10,24]],["look",[9,24]],["look",[13,24]],["look",[13,23]]]},
+   {id:"a-jumper", t:"뒷면 피복선 두 가닥: 핀 35 → R21, 핀 37 → U8 C. 피복이 녹은 곳 없음", side:"bot", p:[["look","J5.35"],["look","R21.1"],["look","J5.37"],["look","U8.4"]]},
+   {id:"a-socket", t:"J5 소켓 1번 핀(E-E) 방향. **Radxa를 거꾸로 꽂으면 5V가 GPIO로 들어간다**", p:[["look","J5.1"]]},
+   {id:"a-r22", t:"R22 자리(`Z-Z~V-Z`)가 비어 있음 — 이번에는 빼고 쓴다", p:[["look","R22.1"],["look","R22.2"]]},
+  ]},
+  {t:"2. 저항 — 전원 넣기 전", note:"멀티미터 저항(Ω) 또는 도통. 모두 열림(OL)이어야 한다. 5V↔GND는 C1 충전으로 잠깐 낮다가 올라가면 정상.", items:[
+   {id:"a-r-12v", t:"J1 +12V ↔ GND", m:"Ω", p:[["+","J1.+12V"],["-","J1.GND"]]},
+   {id:"a-r-5v", t:"5V ↔ GND (J5 2번 자리 ↔ 14번)", m:"Ω", p:[["+","J5.2"],["-","J5.14"]]},
+   {id:"a-r-avm", t:"J2 AVM12V ↔ GND", m:"Ω", p:[["+","J2.AVM12V"],["-","J1.GND"]]},
+   {id:"a-r-car", t:"J3 CAR ↔ GND", m:"Ω", p:[["+","J3.CAR"],["-","J1.GND"]]},
+   {id:"a-r-g13", t:"J3 G13 ↔ GND — 절연돼 있어야 한다", m:"Ω", p:[["+","J3.G13"],["-","J1.GND"]]},
+   {id:"a-r-acc", t:"J2 ACC ↔ GND — R22가 없으니 **열림**", m:"Ω", p:[["+","J2.ACC"],["-","J1.GND"]]},
+   {id:"a-r-e", t:"12V–GND 이웃 줄 ①: D′열 AVM12V ↔ E′열 GND", m:"Ω", side:"bot", p:[["+",[2,19]],["-",[1,19]]]},
+   {id:"a-r-u", t:"12V–GND 이웃 줄 ②: V열 AVM12V ↔ U열 GND", m:"Ω", side:"bot", p:[["+",[10,19]],["-",[11,19]]]},
+   {id:"a-r-33", t:"5V(J5 2번) ↔ 3.3V(1번·17번) 쇼트 없음", m:"Ω", p:[["+","J5.2"],["-","J5.1"],["-","J5.17"]]},
+  ]},
+  {t:"3. 12V만 넣어 보기 — Radxa 없이", note:"전류 제한 0.3A 정도의 전원으로.", items:[
+   {id:"a-idle", t:"J1에 12V. 무부하 전류가 수 mA", m:"mA", p:[["in+","J1.+12V","+12V"],["in-","J1.GND","GND"]]},
+   {id:"a-5v", t:"MP1584 출력을 **5.0~5.1V**로 맞춘다 (가변저항)", m:"V", p:[["in+","J1.+12V","+12V"],["in-","J1.GND","GND"],["+","J5.2"],["-","J5.14"],["look","PS1.OUT+","가변저항"]]},
+   {id:"a-33off", t:"J5 17번(3.3V)도 0V — 3.3V는 Radxa가 만든다. 나머지 소켓 핀도 0V", m:"V", p:[["in+","J1.+12V","+12V"],["in-","J1.GND","GND"],["+","J5.17"],["-","J5.14"]]},
+   {id:"a-iso", t:"J3 L·R·REV·CAR에 12V(귀환 G13)를 넣어도 소켓 22·28·32·37에 12V가 안 보임 — 옵토 절연", p:[["in+","J3.L","+12V"],["in+","J3.R",""],["in+","J3.REV",""],["in+","J3.CAR",""],["in-","J3.G13","귀환"],["+","J5.22"],["+","J5.28"],["+","J5.32"],["+","J5.37"],["-","J5.14"]]},
+   {id:"a-off", t:"전원을 끄고 C1이 방전될 때까지 기다린다", p:[["look","C1.+"]]},
+  ]},
+  {t:"4. Radxa 쪽 준비", items:[
+   {id:"a-sd", t:"SD카드에 Radxa OS를 굽고 Wi-Fi·SSH를 미리 설정", p:[]},
+   {id:"a-nousb", t:"**USB-C 전원은 꽂지 않는다** — 헤더 5V와 같이 넣으면 역급전. 콘솔이 필요하면 USB-TTL(3.3V)을 핀 8(TX)·10(RX)·GND 뒷면 패드에, VCC는 연결 안 함, 1500000bps", side:"bot", p:[["look","J5.8","콘솔 TX"],["look","J5.10","RX"],["look","J5.14","GND"]]},
+   {id:"a-ext", t:"외부 단자 J2·J3·J4·J6·J7·J8 전부 뺀 채로 시작", p:[["look","J2.ACC"],["look","J3.CAR"],["look","J4.GND"],["look","J6.GND"],["look","J7.GND"],["look","J8.SDA"]]},
+  ]},
+ ]},
+ {ph:"B", title:"연결 후", lead:"Radxa를 J5에 꽂고 베이스보드 J1으로만 전원을 넣는다. 소켓 핀은 이제 뒷면 패드에서 짚는다.", groups:[
+  {t:"1. 첫 전원", items:[
+   {id:"b-boot", t:"전류 제한 전원으로 12V. 부팅 중 전류(대략 0.1~0.4A)와 Radxa LED", m:"A", p:[["in+","J1.+12V","+12V"],["in-","J1.GND","GND"]]},
+   {id:"b-5v", t:"부팅 중·후 5V가 4.9V 이상, MP1584·D1이 뜨겁지 않음", m:"V", side:"bot", p:[["+","J5.2"],["-","J5.14"],["look","D1.K"]]},
+   {id:"b-33", t:"J5 17번에 3.3V", m:"V", side:"bot", p:[["+","J5.17"],["-","J5.14"]]},
+   {id:"b-p35", t:"**재부팅 중 핀 35가 High로 튀지 않음** — 오실로스코프. 없으면 J2 AVM12V에 12V를 넣고 J2 ACC에 LED+저항", m:"결과", side:"bot", p:[["+","J5.35"],["-","J5.34"]]},
+  ]},
+  {t:"2. 보드 설정 (SSH)", items:[
+   {id:"b-ssh", t:"Mac `~/.ssh/config`에 `Host radxa` 등록, `ssh radxa` 접속", p:[]},
+   {id:"b-rsetup", t:"`rsetup` 오버레이 SPI3-M1, UART3-M0, UART4-M1, I2C5-M0 켜고 재부팅", p:[]},
+   {id:"b-gpioinfo", t:"`gpioinfo`: gpiochip3 4·5·6·7·17·18, gpiochip1 4, gpiochip4 11이 unused", p:[]},
+  ]},
+  {t:"3. 회로별 확인", note:"명령은 libgpiod v1 기준. v2면 -c gpiochipN.", items:[
+   {id:"b-in-l", t:"좌 깜빡이: J3 L에 12V → `gpioget --bias=pull-up gpiochip3 17`이 0, 빼면 1", p:[["in+","J3.L","+12V"],["in-","J3.G13","귀환"]]},
+   {id:"b-in-r", t:"우 깜빡이: J3 R → `gpioget gpiochip4 11`", p:[["in+","J3.R","+12V"],["in-","J3.G13","귀환"]]},
+   {id:"b-in-rev", t:"후진: J3 REV → `gpioget --bias=pull-up gpiochip3 18`", p:[["in+","J3.REV","+12V"],["in-","J3.G13","귀환"]]},
+   {id:"b-in-car", t:"차 시동: J3 CAR → `gpioget --bias=pull-up gpiochip1 4`", p:[["in+","J3.CAR","+12V"],["in-","J3.G13","귀환"]]},
+   {id:"b-acc", t:"AVM 출력: J2 AVM12V에 12V, `gpioset --mode=wait gpiochip3 4=1` → J2 ACC 약 11.8V. 해제하면 0V 근처(R22가 없어 떠 있을 수 있음)", m:"V", p:[["in+","J2.AVM12V","+12V"],["in-","J1.GND","GND"],["+","J2.ACC"],["-","J1.GND"]]},
+   {id:"b-trig", t:"트리거: J2 AVM12V에 12V, gpiochip3 7·6·5 차례로 → J2 REAR·LEFT·RIGHT 각각 약 11.8V", m:"V", p:[["in+","J2.AVM12V","+12V"],["in-","J1.GND","GND"],["+","J2.REAR"],["+","J2.LEFT"],["+","J2.RIGHT"],["-","J1.GND"]]},
+   {id:"b-uart", t:"`dmesg | grep tty`로 ttyS3·ttyS4. GPS를 J6에 꽂으면 ttyS4로 NMEA", p:[["look","J6.TX"],["look","J4.TX"]]},
+   {id:"b-i2c", t:"나침반을 J8에 꽂고 `i2cdetect -y 5` → 0x0D(QMC5883L) 또는 0x1E. 안 잡히면 J8 두 선을 바꾼다", m:"주소", p:[["look","J8.SCL"],["look","J8.SDA"]]},
+   {id:"b-spi", t:"`/dev/spidev3.0` 있음 (CC1101 동작은 나중에 rvnode에서)", p:[["look","J7.CSN"]]},
+  ]},
+  {t:"4. rvnode", items:[
+   {id:"b-deploy", t:"`./deploy.sh radxa --setup` 한 번, 그 뒤 `./deploy.sh`", p:[]},
+   {id:"b-conf", t:"`/etc/rvnode.yaml`에 MQTT 주소, birdview `enabled: true`, `systemctl restart rvnode`", p:[]},
+   {id:"b-ha", t:"`journalctl -u rvnode -f` 보면서 J3 CAR에 12V → HA `binary_sensor.birdview_ignition` 켜짐, 빼면 30초 뒤 전원 꺼짐", p:[["in+","J3.CAR","+12V"],["in-","J3.G13","귀환"],["+","J2.ACC"],["-","J1.GND"]]},
+   {id:"b-interlock", t:"인터록: 시동이 꺼진 상태(핀 35 Low)에서 좌 깜빡이를 넣어도 J2 LEFT 0V", m:"V", p:[["in+","J3.L","+12V"],["in-","J3.G13","귀환"],["in+","J2.AVM12V","+12V"],["+","J2.LEFT"],["-","J1.GND"]]},
+   {id:"b-last", t:"버드뷰 본체는 맨 마지막. 그 전에 ACC_IN 전류(2mA 안쪽이면 A안)와 트리거선 극성 확인 (docs/18)", m:"mA", p:[["look","J2.ACC"]]},
+  ]},
+ ]},
+];
+const CKITEM = {}; for (const ph of CHECKS) for (const g of ph.groups) for (const it of g.items) CKITEM[it.id] = it;
+let ckOn = false, ckSel = "";
+const ckState = {};
+function ckAt(at){
+  if (Array.isArray(at)) return at;
+  const i = at.indexOf("."), ref = at.slice(0,i), pin = at.slice(i+1);
+  const part = D.parts.find(q=>q.ref===ref); return part && part.pins[pin];
+}
+function ckName(at){ const xy = ckAt(at); if (!xy) return at; const h = holeInfo[`${xy[0]},${xy[1]}`]; return `${h ? h.label.replace(/ GPIO \(.*\)$/,"") : ""} ${hn(...xy)}`.trim(); }
+function drawProbes(svg){
+  const it = CKITEM[ckSel]; if (!it) return;
+  const g = el("g", {}, svg);
+  const seen = {};
+  for (const [role, at, label] of it.p){
+    const xy = ckAt(at); if (!xy) continue;
+    const x = X(xy[0]), y = Y(xy[1]), k = `${xy}`; const n = (seen[k] = (seen[k]||0) + 1);
+    const tip = `${ckName(at)}${label ? " · "+label : ""}`;
+    let m;
+    if (role === "+" || role === "-"){
+      const c = role === "+" ? "var(--probe-pos)" : "var(--probe-com)";
+      m = el("circle", {cx:x, cy:y, r:11 + (n-1)*4, fill:"none", stroke:c, "stroke-width":3.2}, g);
+      el("circle", {cx:x+11, cy:y-11, r:7.5, fill:c}, g);
+      lbl(g, x+11, y-11.5, role === "+" ? "+" : "−", 11, role === "+" ? "#fff" : "var(--panel)");
+    } else if (role === "in+" || role === "in-"){
+      const c = role === "in+" ? "var(--n-p12)" : "var(--n-gnd)";
+      m = el("rect", {x:x-11, y:y-11, width:22, height:22, rx:3, fill:"none", stroke:c, "stroke-width":3}, g);
+      if (label) { el("rect", {x:x-24, y:y+13, width:48, height:15, rx:3, fill:c}, g); lbl(g, x, y+20.5, label, 9, "var(--panel)"); }
+    } else {
+      m = el("circle", {cx:x, cy:y, r:12, fill:"none", stroke:"var(--accent)", "stroke-width":2.6, "stroke-dasharray":"4 3"}, g);
+      if (label) lbl(g, x, y-19, label, 9, "var(--accent)");
+    }
+    el("title", {}, m, tip);
+  }
+}
+function ckRender(){
+  const L = document.getElementById("cklist"); if (!L.dataset.built){
+    let h = "";
+    const esc = t => t.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const fmt = t => esc(t).replace(/`([^`]+)`/g,"<code>$1</code>").replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");
+    const cls = {"+":"pos","-":"com","in+":"inj","in-":"inj","look":"lk"}, sym = {"+":"+","-":"−","in+":"⏻","in-":"⏚","look":"◌"};
+    for (const ph of CHECKS){
+      h += `<h3 class="ck-ph"><span class="tag">${ph.ph}</span>${esc(ph.title)}</h3><p class="ck-lead">${esc(ph.lead)}</p>`;
+      for (const g of ph.groups){
+        h += `<div class="ck-grp" data-g="${g.items.map(i=>i.id).join(" ")}"><span>${esc(g.t)}</span><span></span></div>`;
+        if (g.note) h += `<p class="ck-note">${fmt(g.note)}</p>`;
+        for (const it of g.items){
+          const pts = it.p.map(([r,at,l])=>`<span class="${cls[r]}">${sym[r]} ${esc(ckName(at))}${l?" "+esc(l):""}</span>`).join("");
+          h += `<div class="ck-row" id="ck-${it.id}" tabindex="0" role="button" aria-label="그림에 표시"><input type="checkbox" id="cb-${it.id}" aria-label="완료"><div class="ck-t">${fmt(it.t)}${it.side==="bot"?' <span class="kind">뒷면</span>':""}</div>`
+            + (pts ? `<div class="ck-pts">${pts}</div>` : "")
+            + (it.m ? `<div class="ck-m"><label for="v-${it.id}">측정</label><input type="text" id="v-${it.id}" placeholder="${esc(it.m)}" autocomplete="off"></div>` : "") + `</div>`;
+        }
+      }
+    }
+    L.innerHTML = h; L.dataset.built = 1;
+    for (const id in CKITEM){
+      const row = document.getElementById("ck-"+id), cb = document.getElementById("cb-"+id), v = document.getElementById("v-"+id);
+      row.addEventListener("click", e => { if (e.target === cb || e.target === v) return; ckPick(id); });
+      row.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target === row){ e.preventDefault(); ckPick(id); } });
+      cb.addEventListener("change", () => { ckSave(id, {done: cb.checked}); if (cb.checked && ckSel === id) ckNext(id); });
+      if (v) v.addEventListener("change", () => ckSave(id, {val: v.value.trim()}));
+    }
+  }
+  for (const id in CKITEM){
+    const s = ckState[id] || {}, row = document.getElementById("ck-"+id), v = document.getElementById("v-"+id);
+    document.getElementById("cb-"+id).checked = !!s.done;
+    row.classList.toggle("done", !!s.done); row.classList.toggle("on", id === ckSel);
+    if (v && document.activeElement !== v) v.value = s.val || "";
+  }
+  document.querySelectorAll(".ck-grp").forEach(g => { const ids = g.dataset.g.split(" "); g.lastChild.textContent = `${ids.filter(i=>ckState[i]?.done).length}/${ids.length}`; });
+  document.getElementById("ckprog").textContent = CHECKS.map(ph => { const ids = ph.groups.flatMap(g=>g.items.map(i=>i.id)); return `${ph.ph} ${ids.filter(i=>ckState[i]?.done).length}/${ids.length}`; }).join(" · ");
+  const it = CKITEM[ckSel], cap = document.getElementById("ckcap");
+  cap.innerHTML = it ? `<b>${document.querySelector("#ck-"+ckSel+" .ck-t").innerHTML}</b>${it.p.length ? "" : '<span style="color:var(--muted)">짚을 곳 없음</span>'}` : '<span style="color:var(--muted)">아래 항목을 누르면 짚을 곳이 그림에 표시된다</span>';
+}
+function setView(v){ view = v; document.getElementById("v-top").setAttribute("aria-pressed", v==="top"); document.getElementById("v-bot").setAttribute("aria-pressed", v==="bot"); }
+function ckPick(id){ ckSel = id; const it = CKITEM[id]; setView(it.side === "bot" ? "bot" : "top"); draw(); ckRender(); }
+function ckNext(id){ const ids = Object.keys(CKITEM), i = ids.indexOf(id); const nx = ids.slice(i+1).find(k=>!ckState[k]?.done); if (nx) ckPick(nx); }
+function ckMode(on){
+  ckOn = on; document.getElementById("ckmode").setAttribute("aria-pressed", on);
+  document.querySelector(".wrap").classList.toggle("checking", on);
+  document.getElementById("checks").hidden = !on; document.getElementById("ckcap").hidden = !on;
+  if (on){ sel = ""; document.getElementById("netsel").value = ""; newOnly = false; overlay = false; document.getElementById("nw").checked = false; document.getElementById("ov").checked = false;
+    ckRender(); const first = Object.keys(CKITEM).find(k=>!ckState[k]?.done) || Object.keys(CKITEM)[0]; ckPick(ckSel || first); }
+  else draw();
+  renderWires();
+}
+// 저장: 이 페이지의 db(checks/<id>, 휴대폰·노트북에서 같이 보임). 안 되는 화면이면 이 브라우저에만
+let ckDb = null; const CKLS = "bringup-v1", ckPend = {};
+const ckSync = t => { document.getElementById("cksync").textContent = t; };
+function ckLsW(){ try { localStorage.setItem(CKLS, JSON.stringify(ckState)); } catch(e) {} }
+async function ckSave(id, patch){
+  ckState[id] = {...(ckState[id]||{}), ...patch}; ckRender();
+  if (!ckDb){ ckLsW(); return; }
+  if (ckPend[id]){ ckPend[id].again = true; return; }
+  ckPend[id] = {again:false};
+  try {
+    do { ckPend[id].again = false; const s = ckState[id];
+      await ckDb.collection("checks").doc(id).set({done: !!s.done, val: s.val || "", at: new Date().toISOString()});
+    } while (ckPend[id].again);
+    ckSync("저장됨 · 다른 기기에서도 보임");
+  } catch(e){ ckSync(e && e.code === "invalid_argument" ? "읽기 전용 — 이 계정으로는 저장할 수 없음" : "저장 실패 — 다시 체크해 보세요"); }
+  finally { delete ckPend[id]; }
+}
+{ const b = document.getElementById("ckreset"); let tm = null;
+  b.addEventListener("click", async () => {
+    if (!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent = "한 번 더 누르면 지움"; tm = setTimeout(()=>{ b.classList.remove("armed"); b.textContent = "체크 모두 지우기"; }, 4000); return; }
+    clearTimeout(tm); b.classList.remove("armed"); b.textContent = "체크 모두 지우기";
+    const ids = Object.keys(ckState); for (const k of ids) delete ckState[k]; ckRender();
+    if (!ckDb){ ckLsW(); return; }
+    for (const k of ids){ try { await ckDb.collection("checks").doc(k).delete(); } catch(e) {} }
+    ckSync("지움");
+  }); }
+try { Object.assign(ckState, JSON.parse(localStorage.getItem(CKLS) || "{}")); } catch(e) {}
+ckSync("이 브라우저에만 저장");
+(async () => {
+  const d = window.claude?.use ? await window.claude.use("db").catch(()=>null) : null;
+  if (!d) return;
+  ckDb = d;
+  d.collection("checks").onSnapshot(snap => {
+    for (const k of Object.keys(ckState)) if (!ckPend[k]) delete ckState[k];
+    for (const doc of snap.docs){ if (ckPend[doc.id]) continue; const v = doc.data() || {}; ckState[doc.id] = {done: !!v.done, val: String(v.val || "")}; }
+    if (ckOn) ckRender();
+    if (!snap.metadata.hasPendingWrites) ckSync("저장됨 · 다른 기기에서도 보임");
+  }, () => { ckDb = null; ckSync("이 브라우저에만 저장"); });
+})();
+
+function setSel(n){ sel = n; document.getElementById("netsel").value = n; renderLegend(); draw(); renderWires(); }
+const GROUPS = [["gnd","GND"],["p12","+12V 입력"],["p5","5V"],["p33","3.3V"],["avm","버드뷰 12V"],["spi","CC1101 SPI"],
+  ["gps","GPS (UART·나침반 I2C)"],["bv","버드뷰 UART"],["in","13핀 입력 → GPIO"],["iso","13핀 쪽 (절연)"],["out","GPIO → 트리거 LED"],["trig","트리거 출력"]];
+function renderLegend(){
+  const L = document.getElementById("legend"); L.innerHTML = "";
+  for (const [k,t] of GROUPS){ const s = document.createElement("span"); s.className = "net"; s.innerHTML = `<i style="background:var(--n-${k})"></i>${t}`; L.appendChild(s); }
+}
+// 배선 순서표 — 네트별로 묶는다
+let done = {}; try { done = JSON.parse(localStorage.getItem("perf-done-v5")||"{}"); } catch(e) {}
+function save(){ try { localStorage.setItem("perf-done-v5", JSON.stringify(done)); } catch(e) {} }
+function end(c,r){ const i = holeInfo[`${c},${r}`] || (traceNet[`${c},${r}`] ? {label:"(꺾이는 곳)"} : null); return `<span class="mono"><b>${hn(c,r)}</b></span> <span style="color:var(--muted)">${i?i.label:""}</span>`; }
+function renderWires(){
+  const tb = document.querySelector("#wires tbody"); tb.innerHTML = "";
+  const groups = {};
+  D.runs.forEach((e,i)=>{ if (!newOnly || e.added) (groups[e.net] ||= []).push([e,i]); });
+  D.jumpers.forEach((e,i)=>{ (groups[e.net] ||= []).push([{...e, jumper:true}, "j"+i]); });
+  if (newOnly) (D.removed||[]).forEach((e,i)=>{ (groups[e.net] ||= []).push([{...e, removed:true}, "x"+i]); });
+  let total = 0, n = 0;
+  for (const net of Object.keys(NET)) if (groups[net]){
+    const tr = document.createElement("tr"); tr.className = "grp";
+    tr.innerHTML = `<td colspan="4"><i style="background:${col(net)}"></i>${NET[net][0]}</td>`; tb.appendChild(tr);
+    for (const [e,i] of groups[net]){
+      const id = `${e.a}-${e.b}`; total++; if (done[id]) n++;
+      const len = Math.abs(e.a[0]-e.b[0]) + Math.abs(e.a[1]-e.b[1]);
+      const dir = e.jumper ? "피복선" : (e.a[1] === e.b[1] ? "가로" : "세로");
+      const r = document.createElement("tr"); if (done[id]) r.classList.add("done"); if (sel===net) r.classList.add("hl");
+      r.innerHTML = `<td><input type="checkbox" id="w${i}" ${done[id]?"checked":""} aria-label="완료"></td><td><span class="kind">${dir} ${len}칸</span>${e.added?' <span class="kind new">추가</span>':''}${e.removed?' <span class="kind" style="color:var(--n-p5);border-color:var(--n-p5)">떼기</span>':''}</td><td>${end(...e.a)}</td><td>${end(...e.b)}</td>`;
+      r.querySelector("input").addEventListener("change", ev=>{ done[id] = ev.target.checked; save(); renderWires(); });
+      tb.appendChild(r);
+    }
+  }
+  document.getElementById("prog").textContent = `${newOnly ? "추가분만 · " : ""}${n} / ${total} 가닥 완료 · 체크는 이 브라우저에만 저장된다`;
+}
+function renderParts(){
+  const tb = document.querySelector("#parts tbody");
+  for (const p of D.parts){
+    let holes;
+    if (p.ref === "J5") holes = "1·3…39번 = E-E→X-E, 2·4…40번 = E-F→X-F";
+    else holes = Object.entries(p.pins).map(([pin,[c,r]])=>`${pin}=${hn(c,r)}`).join(" ");
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="mono"><b>${p.ref}</b>${p.added?' <span class="kind new">추가</span>':''}${p.replaced?' <span class="kind new">교체</span>':''}</td><td>${p.value}</td><td class="mono">${holes}</td>`;
+    tb.appendChild(tr);
+  }
+}
+const ss = document.getElementById("netsel");
+for (const n of Object.keys(NET)) if (Object.values(D.pinnet).includes(n)){ const o=document.createElement("option"); o.value=n; o.textContent=NET[n][0]; ss.appendChild(o); }
+ss.addEventListener("change", e=>setSel(e.target.value));
+document.getElementById("v-top").addEventListener("click", ()=>{ setView("top"); draw(); });
+document.getElementById("v-bot").addEventListener("click", ()=>{ setView("bot"); draw(); });
+document.getElementById("ckmode").addEventListener("click", ()=>ckMode(!ckOn));
+document.getElementById("ov").addEventListener("change", e=>{ overlay = e.target.checked; draw(); });
+document.getElementById("nw").addEventListener("change", e=>{ newOnly = e.target.checked; draw(); renderWires(); });
+{ const np = D.parts.filter(p=>p.added), nr = D.runs.filter(e=>e.added);
+  const rp = D.parts.filter(p=>p.replaced), rm = D.removed||[];
+  document.getElementById("newsum").innerHTML = `<b>추가 납땜 (2026-10-25, AVM 켜짐·차 시동):</b> 새 부품 ${np.length}개(${np.map(p=>p.ref).join(" · ")}), <b>헤더 교체 ${rp.length}개</b>(${rp.map(p=>p.ref).join(" · ")}: 4P → 5P), 뒷면 맨선 ${nr.length}가닥 추가, <b>기존 맨선 ${rm.length}가닥 떼기</b>(빨간 점선, 후진 배선을 W행으로 옮김), 피복선 ${D.jumpers.length}가닥, 기존 납땜점에 이어 붙이는 곳 ${TOUCH.size}곳(주황 고리). 위 "추가 납땜만 강조"를 끄면 판 전체가 보인다.`; }
+if (location.hash === "#back"){ view = "bot"; document.getElementById("v-bot").setAttribute("aria-pressed",true); document.getElementById("v-top").setAttribute("aria-pressed",false); }
+renderLegend(); renderParts(); renderWires(); draw();
+if (location.hash === "#check") ckMode(true);
+</script>
+
+
+</body></html>
