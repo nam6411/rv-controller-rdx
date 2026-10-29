@@ -30,6 +30,8 @@ rvnode/
 tests/          pytest
 systemd/        rvnode.service
 deploy.sh       rsync + venv + systemd 재시작
+docs/           배선 §12·계획·GPS·영상 문서, artifacts/ = 베이스보드·AVM 회로 페이지 사본
+tools/radxa_baseboard.py  베이스보드 페이지 데이터 검사 + docs/18 §12.4 표 생성
 ```
 
 - 장치 하나 = ESP 슬롯 하나 = asyncio 태스크 하나. 한 장치가 죽거나 재연결 중이어도 다른 장치는 계속 돕니다. 죽은 태스크는 5초 뒤 다시 시작합니다.
