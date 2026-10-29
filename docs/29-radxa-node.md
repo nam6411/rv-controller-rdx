@@ -48,7 +48,7 @@
 
 ### 3.1 HA 엔티티 — `unique_id`
 ESP 노드는 `uniq_id = <장치 ID>_<slug>_<키>`, 기기 `ids = [<장치 ID>]`로 discovery를 낸다 (`src/core/HaDiscovery.cpp`).
-지금 HA에 등록된 MQTT 엔티티 (2026-10-20):
+지금 HA에 등록된 MQTT 엔티티 (2026-10-20). 엔티티 하나하나의 토픽·경로는 [docs/31](31-mqtt-entities.md):
 
 | 접두어 | 개수 | 넘김 |
 |---|---|---|
@@ -66,12 +66,12 @@ ESP 노드는 `uniq_id = <장치 ID>_<slug>_<키>`, 기기 `ids = [<장치 ID>]`
 | 토픽 | 읽는 쪽 | 지킬 것 |
 |---|---|---|
 | `rv/mach/state` | UPower 에어컨 인터록(`ac.mode`), 디스플레이(`ac.*`, `alde.set`, `ebl.fresh`·`inside`), MaxxFan 노드 자동 제어(설정 시) | 키 이름·단위·`ac.ok`·`live` 그대로 |
-| `rv/mach/tpms/state`, `rv/bms/state` | 디스플레이(`bms:soc`·`power`), HA | 〃 |
+| `rv/mach/tpms/state`, `rv/mach/bms/state` | 디스플레이(`bms:soc`·`power`), HA | 〃 |
 | `<prefix>/meta`, `availability`, `switch/<n>/state` | 디스플레이 | meta JSON(`type`, `label`, `switches`, `metrics`, `ring`) 같은 모양 |
 | `<prefix>/switch/<n>/set`, `control/<n>/set`, `sys/cmd` | HA·디스플레이 → 노드 | 명령 형식·응답(state 즉시 재발행) 같게 |
 | `homeassistant/status` = `online` | 노드 | 받으면 discovery·state 재발행 |
 
-- MQTT 규약 전체: docs/07. 슬롯 2개 이상 노드라 prefix는 `rv/mach`(MACH)·`rv/mach/tpms`(TPMS)다 — 지금과 같다. JBD는 `rv/bms`.
+- MQTT 규약 전체: docs/07. 슬롯 2개 이상 노드라 prefix는 `rv/mach`(MACH)·`rv/mach/tpms`(TPMS)다 — 지금과 같다. JBD는 `rv/mach/bms` (옛 단독 BMS 노드의 `rv/bms`는 retained만 남아 있다, docs/31).
 - ESP가 하던 동작을 같이 옮긴다: 장치가 3회 연속 실패하면 `availability = offline`, 명령을 받으면 바로 state 발행, BLE 재연결 백오프.
 
 ### 3.3 브로커가 하던 일

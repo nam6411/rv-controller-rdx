@@ -6,6 +6,7 @@
 - [`docs/18-wiring.md`](docs/18-wiring.md) — 배선 §12 (핀 배정·회로도·부품·만능기판 배치·외부 결선)
 - [`docs/24-gps-weather.md`](docs/24-gps-weather.md) — GPS·나침반·날씨
 - [`docs/30-birdview-video.md`](docs/30-birdview-video.md) — 버드뷰 화면 원격 보기
+- [`docs/31-mqtt-entities.md`](docs/31-mqtt-entities.md) — MQTT 엔티티 전체 목록 (모든 노드의 state·switch·control, `tools/mqtt_inventory.py`로 생성)
 - [`docs/artifacts/radxa-baseboard.html`](docs/artifacts/radxa-baseboard.html) — 베이스보드 회로도·기판 배치 페이지,
   [`docs/artifacts/avm-acc-or.html`](docs/artifacts/avm-acc-or.html) — AVM 켜짐(ACC OR) 회로
 
@@ -32,6 +33,7 @@ systemd/        rvnode.service
 deploy.sh       rsync + venv + systemd 재시작
 docs/           배선 §12·계획·GPS·영상 문서, artifacts/ = 베이스보드·AVM 회로 페이지 사본
 tools/radxa_baseboard.py  베이스보드 페이지 데이터 검사 + docs/18 §12.4 표 생성
+tools/mqtt_inventory.py   ls 브로커의 HA discovery → docs/31 엔티티 목록
 ```
 
 - 장치 하나 = ESP 슬롯 하나 = asyncio 태스크 하나. 한 장치가 죽거나 재연결 중이어도 다른 장치는 계속 돕니다. 죽은 태스크는 5초 뒤 다시 시작합니다.
