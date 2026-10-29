@@ -36,6 +36,28 @@ web:
   port: 80
   password: ""             # 비우면 인증 없음 (차 안 LAN 전용)
 
+# 노드가 이 보드를 브로커로 찾는 길 (docs/29 §3.3, rv-controller docs/15 §5). 브로커를 이 보드로 옮길 때(docs/29 §5 5단계) 켠다:
+#   ESP 브로커를 끄고, 위 mqtt.host를 localhost로 바꾼 뒤 enabled: true.
+#   - UDP 비콘: 5초마다 "essio-broker <mdns_name> <port>"를 47300으로 브로드캐스트 (공유기가 mDNS를 막아도 노드가 찾는다)
+#   - mDNS: 호스트명(radxa.local)은 그대로, avahi로 <mdns_name>.local 별칭 + _mqtt._tcp를 더 알린다
+broker:
+  enabled: false
+  mdns_name: broker        # 노드의 mqtt.mdns_name과 같게
+  port: 1883
+
+# 폴백 AP (docs/29 §3.4) — 공유기가 안 보이거나 after_s 넘게 끊기면 이 AP를 띄워 노드를 묶는다.
+# AP 중에는 rescan_s마다 공유기를 찾아 보이면 돌아간다. 공유기 SSID·비밀번호는 웹의 Wi-Fi 칸에서 넣는다(NetworkManager에 저장).
+# AP 상태에서는 폰을 이 AP에 붙이고 http://192.168.4.1/ 로 들어와 공유기를 고친다.
+fallback:
+  enabled: false
+  iface: wlan0
+  ssid: RV-FALLBACK        # 노드의 wifi.fallback_ssid와 같게
+  password: ""             # 노드의 wifi.fallback_password와 같게 (8~63자). 웹에서 넣는다
+  address: 192.168.4.1/24  # AP 게이트웨이 = 노드가 보는 브로커 주소
+  after_s: 60
+  rescan_s: 30
+  sta_retry_s: 300         # AP 중 스캔을 못 하는 드라이버면 이 주기로 공유기에 그냥 붙어 본다 (0 = 안 함)
+
 # 장치 하나 = ESP의 슬롯 하나. prefix를 비우면 ESP와 같은 규칙:
 #   base가 /<slug>로 끝나면 base 그대로, 아니면 <base>/<slug>
 devices:

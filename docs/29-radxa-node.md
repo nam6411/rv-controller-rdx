@@ -80,8 +80,8 @@ mosquitto가 기본으로 하지 않는 것만 따로 만든다.
 | 기능 | ESP 브로커 | Radxa |
 |---|---|---|
 | retained 보관·재생 | 직접 구현 (128 토픽 × 1280B) | mosquitto 기본. **`cmd`·`set`은 retain하지 않는다** 규칙은 클라이언트 쪽이 이미 지킨다 |
-| 노드 탐색 — mDNS | `broker.local`, `_mqtt._tcp` | avahi: 호스트명 `broker` 또는 별칭 + `_mqtt._tcp` 서비스 파일 |
-| 노드 탐색 — UDP 비콘 | 5초마다 포트 47300 `essio-broker <host> <port>` | 작은 데몬(또는 rvnode 안). **공유기가 멀티캐스트를 막아도 노드가 찾는 길이라 꼭 필요** (docs/15 §5) |
+| 노드 탐색 — mDNS | `broker.local`, `_mqtt._tcp` | ✅ rvnode `broker.py`: 호스트명 `radxa`는 그대로, `avahi-publish`로 `broker.local` 별칭 + `_mqtt._tcp`. 주소가 바뀌면 다시 낸다 (2026-10-29) |
+| 노드 탐색 — UDP 비콘 | 5초마다 포트 47300 `essio-broker <host> <port>` | ✅ rvnode `broker.py`, 붙은 망마다 브로드캐스트. **공유기가 멀티캐스트를 막아도 노드가 찾는 길이라 꼭 필요** (docs/15 §5). 설정 `broker.enabled` |
 | 외부 브리지 | out `rv/#,homeassistant/#`, in `…/switch/+/set`·`…/control/+/set`·`…/sys/cmd`·`homeassistant/status`, LWT `rv/broker/bridge` | mosquitto `connection` 블록 (topic out/in, `remote_prefix` → 토픽 접두어, TLS). 에코 필터는 방향을 나눠 두면 필요 없다 |
 | 재접속 후 재동기화 | retained 재전송 + 로컬에 `homeassistant/status = online` | 브리지 상태 토픽(`notifications`)을 보고 같은 birth를 로컬에 낸다 |
 | 자체 상태 | `rv/broker/status`, `rv/broker/diag/info` | 같은 토픽으로 (HA·디스플레이 개요가 본다) |
@@ -98,7 +98,7 @@ ESP 노드는 바꾸지 않는다. 노드가 기대하는 것을 Radxa가 그대
 | 주소 | Radxa = AP 게이트웨이(예: `192.168.4.1`), DHCP로 노드에 그 게이트웨이를 준다 — **노드는 폴백 SSID에 붙으면 게이트웨이를 브로커로 쓴다** |
 | 탐색 | AP 위에서도 비콘(47300)·mDNS를 낸다 |
 | 무선 | 내장 AIC8800이 Wi-Fi STA/AP와 BLE를 같이 맡는다 (2026-10-21, 동글 없이 먼저 시도). AP 모드 지원은 보드 준비 때 먼저 확인. AP·BLE를 같이 돌릴 때 BLE가 버티는지도 본다 |
-| 구현 | NetworkManager의 AP 연결 프로필 + 상태를 보고 STA/AP를 바꾸는 작은 감시 태스크 (또는 hostapd + dnsmasq) |
+| 구현 | ✅ rvnode `wifi.py` (2026-10-29): NM AP 프로필 `rv-fallback`(ipv4 shared = NM이 DHCP) + 5초 감시 태스크. AP 중 공유기 찾기는 `iw scan ap-force`(sudo), 드라이버가 못 하면 `sta_retry_s`마다 그냥 붙어 본다. 설정 `fallback`, 공유기 SSID·비밀번호는 웹 Wi-Fi 칸(NM에 저장) |
 
 - AP 상태에서는 LTE 공유기가 없으므로 외부 브리지·날씨는 멈춘다. 로컬(노드·디스플레이·스위치)은 그대로 동작해야 한다.
 - 공유기가 돌아오면 노드들은 다시 공유기로 붙고 비콘·mDNS로 Radxa를 찾는다.

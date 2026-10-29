@@ -1,7 +1,8 @@
 #!/bin/sh
 # Radxa로 배포: 코드를 rsync하고, 의존성을 venv에 깔고, 서비스를 다시 띄운다.
 #   ./deploy.sh [host]          (기본 host = radxa, ~/.ssh/config의 이름 또는 radxa@192.168.1.150)
-#   ./deploy.sh radxa --setup   처음 한 번: rvnode 계정·venv·mosquitto 기본 설정·sudo 규칙·설정 파일 자리
+#   ./deploy.sh radxa --setup   처음 한 번: rvnode 계정·venv·gpsd·udev 규칙
+#   매번: avahi·iw·dnsmasq-base, sudo 규칙(mosquitto 재시작·AP 중 스캔), NetworkManager polkit 규칙, 오버레이, 코드·설정
 set -eu
 
 HOST=${1:-radxa}
@@ -22,15 +23,34 @@ printf '%s\n' 'SUBSYSTEM=="gpio", KERNEL=="gpiochip*", GROUP="gpio", MODE="0660"
   'SUBSYSTEM=="spidev", GROUP="spi", MODE="0660"' 'SUBSYSTEM=="i2c-dev", GROUP="i2c", MODE="0660"' \
   | sudo tee /etc/udev/rules.d/60-rvnode.rules >/dev/null
 sudo udevadm control --reload && sudo udevadm trigger
-# 웹 설정이 브리지를 바꾸면 mosquitto만 다시 시작할 수 있게
-echo 'rvnode ALL=(root) NOPASSWD: /usr/bin/systemctl restart mosquitto' | sudo tee /etc/sudoers.d/91-rvnode >/dev/null
-sudo chmod 440 /etc/sudoers.d/91-rvnode
 # gpsd가 GPS(UART4 = /dev/ttyS4, 115200)를 쥔다 — rvnode gps 장치는 2947 소켓만 읽는다 (docs/24 §4.1)
 sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q install gpsd gpsd-clients >/dev/null
 printf '%s\n' 'START_DAEMON="true"' 'USBAUTO="false"' 'DEVICES="/dev/ttyS4"' 'GPSD_OPTIONS="-n -s 115200"' | sudo tee /etc/default/gpsd >/dev/null
 sudo systemctl enable gpsd.socket gpsd >/dev/null 2>&1; sudo systemctl restart gpsd
 EOF
 fi
+
+# 매번: 브로커 탐색(mDNS 별칭)·폴백 AP에 쓰는 패키지와 권한. 패키지는 없을 때만 깐다
+ssh "$HOST" "sh -eu" <<'EOF'
+NEED=""
+for p in avahi-daemon avahi-utils iw dnsmasq-base; do dpkg -s $p >/dev/null 2>&1 || NEED="$NEED $p"; done
+[ -z "$NEED" ] || { sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q install $NEED >/dev/null; echo "installed:$NEED"; }
+# 웹 설정이 브리지를 바꾸면 mosquitto만 다시 시작, 폴백 AP 중에는 iw로 공유기를 찾는다(NM은 AP 모드 장치의 스캔을 받지 않는다)
+echo 'rvnode ALL=(root) NOPASSWD: /usr/bin/systemctl restart mosquitto, /usr/sbin/iw dev wlan0 scan ap-force' > /tmp/91-rvnode
+sudo visudo -cqf /tmp/91-rvnode && sudo install -m 440 /tmp/91-rvnode /etc/sudoers.d/91-rvnode
+# rvnode가 NetworkManager로 공유기·폴백 AP 프로필을 다루게 (polkit 신형 JS 규칙, 구형이면 pkla)
+if [ -d /etc/polkit-1/rules.d ]; then
+  printf '%s\n' 'polkit.addRule(function(action, subject) {' \
+    '  if (subject.user == "rvnode" && action.id.indexOf("org.freedesktop.NetworkManager.") == 0) return polkit.Result.YES;' \
+    '});' | sudo tee /etc/polkit-1/rules.d/50-rvnode-nm.rules >/dev/null
+fi
+if [ -d /etc/polkit-1/localauthority ]; then
+  sudo mkdir -p /etc/polkit-1/localauthority/50-local.d
+  printf '%s\n' '[rvnode NetworkManager]' 'Identity=unix-user:rvnode' 'Action=org.freedesktop.NetworkManager.*' \
+    'ResultAny=yes' 'ResultInactive=yes' 'ResultActive=yes' | sudo tee /etc/polkit-1/localauthority/50-local.d/rvnode-nm.pkla >/dev/null
+fi
+sudo systemctl enable --now avahi-daemon >/dev/null 2>&1 || true
+EOF
 
 # 옵토 입력 핀 풀업 오버레이 (Rockchip GPIO 드라이버가 gpiod의 bias 요청을 적용하지 않는다). 처음 한 번, 재부팅 후 적용
 scp -q dts/rvnode-inputs-pullup.dts "$HOST:/tmp/"

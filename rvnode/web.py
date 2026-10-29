@@ -7,6 +7,11 @@ PUT  /api/config    설정 저장 → 브리지 파일 갱신(바뀌면 mosquitt
 POST /api/device/{slug}/{switch|control}/{name}   장치 명령 (MQTT …/set과 같은 큐). 본문 = 값 (ON/OFF, PRESS, 선택지)
 GET  /api/video/{slug}.mjpeg  영상 장치 라이브 (multipart MJPEG — 여는 동안만 캡처한다)
 GET  /api/video/{slug}.jpg    한 장
+GET  /api/wifi                Wi-Fi 상태(공유기/폴백 AP)·저장된 공유기
+GET  /api/wifi/scan           주변 Wi-Fi
+POST /api/wifi/networks       공유기 저장 {ssid, password, connect} — 비밀번호는 NM 프로필에만
+DELETE /api/wifi/networks/{ssid}
+POST /api/wifi/mode           {"to": "ap"} 폴백 AP 켜기 / {"to": "sta", "ssid": ""} 공유기로
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ from aiohttp import web
 
 from . import settings
 from .config import ConfigError, load_raw
+from .wifi import WifiUnavailable, check_network
 
 if TYPE_CHECKING:
     from .node import Node
@@ -37,6 +43,11 @@ def make_app(node: Node) -> web.Application:
     app.router.add_post("/api/device/{slug}/{kind}/{name}", _command)
     app.router.add_get("/api/video/{slug}.mjpeg", _video_stream)
     app.router.add_get("/api/video/{slug}.jpg", _video_frame)
+    app.router.add_get("/api/wifi", _wifi)
+    app.router.add_get("/api/wifi/scan", _wifi_scan)
+    app.router.add_post("/api/wifi/networks", _wifi_save)
+    app.router.add_delete("/api/wifi/networks/{ssid}", _wifi_forget)
+    app.router.add_post("/api/wifi/mode", _wifi_mode)
     return app
 
 
@@ -134,6 +145,85 @@ async def _put_config(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "bridge_changed": bridge_changed, "restart": True})
 
 
+def _later(coro) -> None:
+    """응답을 먼저 보내고 1초 뒤에 한다 — Wi-Fi를 바꾸면 지금 붙은 사람이 끊긴다."""
+    async def go():
+        await asyncio.sleep(1.0)
+        try:
+            await coro
+        except Exception:
+            log.exception("wifi action failed")
+
+    t = asyncio.get_running_loop().create_task(go())
+    _pending.add(t)
+    t.add_done_callback(_pending.discard)
+
+
+_pending: set[asyncio.Task] = set()
+
+
+def _wifi_error(e: Exception) -> web.Response:
+    return web.json_response({"ok": False, "error": str(e)}, status=503 if isinstance(e, WifiUnavailable) else 500)
+
+
+async def _wifi(request: web.Request) -> web.Response:
+    w = request.app["node"].wifi
+    return web.json_response({**w.info(), "networks": await w.networks(), "last_scan": w.last_scan})
+
+
+async def _wifi_scan(request: web.Request) -> web.Response:
+    try:
+        nets = await request.app["node"].wifi.scan()
+    except (WifiUnavailable, RuntimeError) as e:
+        return _wifi_error(e)
+    if nets is None:
+        return web.json_response({"ok": False, "error": "AP 상태에서는 이 무선이 주변을 찾지 못한다"}, status=503)
+    return web.json_response({"ok": True, "networks": nets})
+
+
+async def _wifi_save(request: web.Request) -> web.Response:
+    w = request.app["node"].wifi
+    try:
+        body = await request.json()
+        ssid, pw = str(body.get("ssid", "")).strip(), str(body.get("password", ""))
+    except Exception:
+        return web.json_response({"ok": False, "error": "JSON이 아니다"}, status=400)
+    if err := check_network(ssid, pw):
+        return web.json_response({"ok": False, "error": err}, status=400)
+    try:
+        await w.nm.save_network(ssid, pw)
+    except (WifiUnavailable, RuntimeError) as e:
+        return _wifi_error(e)
+    log.warning("wifi: network '%s' saved via web", ssid)
+    if body.get("connect"):
+        # 응답을 먼저 보낸다 — AP로 붙은 사람은 곧 끊긴다
+        _later(w.force_sta(ssid))
+    return web.json_response({"ok": True, "connecting": bool(body.get("connect"))})
+
+
+async def _wifi_forget(request: web.Request) -> web.Response:
+    try:
+        n = await request.app["node"].wifi.nm.forget(request.match_info["ssid"])
+    except (WifiUnavailable, RuntimeError) as e:
+        return _wifi_error(e)
+    return web.json_response({"ok": n > 0, "removed": n})
+
+
+async def _wifi_mode(request: web.Request) -> web.Response:
+    w = request.app["node"].wifi
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    to = body.get("to")
+    if to not in ("ap", "sta"):
+        return web.json_response({"ok": False, "error": "to는 ap 또는 sta"}, status=400)
+    if not w.available:
+        return web.json_response({"ok": False, "error": w.error or "Wi-Fi를 다룰 수 없다"}, status=503)
+    _later(w.force_ap() if to == "ap" else w.force_sta(str(body.get("ssid", ""))))
+    return web.json_response({"ok": True})
+
+
 async def _command(request: web.Request) -> web.Response:
     node: Node = request.app["node"]
     slug, kind, name = request.match_info["slug"], request.match_info["kind"], request.match_info["name"]
@@ -192,8 +282,21 @@ button.sec{background:transparent;color:var(--accent);border:1px solid var(--acc
 .kv div{background:var(--bg);border-radius:6px;padding:6px 8px}.kv b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
 .kv span{font-size:12px;color:var(--muted)}
 .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.btns button{padding:4px 10px;font-size:13px}
+.banner{border-left:3px solid var(--accent);background:var(--bg);padding:8px 12px;border-radius:0 6px 6px 0;margin-bottom:10px;font-size:14px}
+.net{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 0;border-bottom:1px solid var(--line)}.net b{min-width:0;overflow-wrap:anywhere}
+.net .btns{margin:0 0 0 auto}
 </style></head><body><main>
 <header><h1>rvnode 설정</h1><div class="hint" id="sub"></div></header>
+<section class="card" id="wificard"><h2>Wi-Fi <span class="hint" id="wsub"></span></h2>
+<div id="wbanner"></div><div id="wstat">불러오는 중…</div>
+<div style="margin-top:12px"><b style="font-size:14px">저장된 공유기</b> <span class="hint">비밀번호는 NetworkManager에만 저장한다</span><div id="wnets"></div></div>
+<div class="grid" style="margin-top:10px"><label>SSID<input id="wssid" list="wscanlist" autocomplete="off"></label><label>비밀번호<input id="wpw" type="password" placeholder="열린 망이면 비운다" autocomplete="new-password"></label></div>
+<datalist id="wscanlist"></datalist>
+<div class="btns"><button id="wsaveconn" type="button">저장하고 연결</button><button class="sec" id="wsave" type="button">저장만</button><button class="sec" id="wscan" type="button">주변 찾기</button>
+<button class="sec" id="wap" type="button">폴백 AP 켜기</button><button class="sec" id="wsta" type="button">공유기로 다시 연결</button></div>
+<div id="wmsg" class="hint" style="margin-top:6px"></div><div id="wscanres"></div>
+<details style="margin-top:8px"><summary class="hint">전환 기록</summary><div id="wlog" class="hint"></div></details>
+</section>
 <section class="card" id="mapcard" hidden><h2>위치 <span class="hint" id="maddr"></span></h2><div id="map" style="height:320px;border-radius:6px;background:var(--bg)"></div><div class="btns"><button class="sec" id="mfollow">따라가기 켜짐</button><a class="hint" id="mlink" target="_blank" rel="noopener"></a></div></section>
 <section class="card" id="videocard" hidden><h2>영상 <span class="hint" id="vinfo"></span></h2><div class="btns"><button id="vbtn">보기</button><button class="sec" id="vsnap">한 장</button></div><img id="vimg" alt="" style="display:none;width:100%;max-width:960px;margin-top:8px;border-radius:6px;background:#000"></section>
 <section class="card"><h2>센서 <span class="hint" id="live"></span></h2><div id="sensors">불러오는 중…</div></section>
@@ -222,6 +325,9 @@ function render(c){
   h+=`<h2>노드</h2><div class="grid">${field("node.device_id","장치 ID (HA uniq_id 앞)",n.device_id)}${field("node.base","기본 토픽",n.base)}${field("node.label","이름",n.label)}${field("log_level","로그 수준",c.log_level||"info","select","debug,info,warning,error")}</div>`;
   h+=`<h2 style="margin-top:16px">로컬 MQTT</h2><div class="grid">${field("mqtt.host","브로커 주소",m.host)}${field("mqtt.port","포트",m.port??1883,"number")}${field("mqtt.username","사용자",m.username)}${field("mqtt.password","비밀번호",m.password_set,"password")}${field("mqtt.discovery","HA discovery 발행",m.discovery??true,"bool")}</div>`;
   h+=`<h2 style="margin-top:16px">외부 브리지 (ls)</h2><div class="grid">${field("bridge.enabled","브리지 켜기",b.enabled,"bool")}${field("bridge.host","외부 브로커",b.host)}${field("bridge.port","포트",b.port??8883,"number")}${field("bridge.tls","TLS",b.tls??true,"bool")}${field("bridge.username","사용자",b.username)}${field("bridge.password","비밀번호",b.password_set,"password")}${field("bridge.remote_prefix","원격 접두어 (보통 비움)",b.remote_prefix)}${field("bridge.out_topics","밖으로 보낼 토픽",b.out_topics)}${field("bridge.in_topics","안으로 받을 토픽",b.in_topics)}</div>`;
+  const bk=c.broker||{},fb=c.fallback||{};
+  h+=`<h2 style="margin-top:16px">브로커 — 노드가 이 보드를 찾는 길</h2><p class="hint" style="margin:0 0 8px">켜면 UDP 비콘(47300)과 mDNS 별칭(이름.local, _mqtt._tcp)을 낸다. ESP 브로커를 먼저 끄고, 위 로컬 MQTT 주소는 localhost로 둔다.</p><div class="grid">${field("broker.enabled","비콘·mDNS 켜기",bk.enabled,"bool")}${field("broker.mdns_name","이름 (노드의 mqtt.mdns_name)",bk.mdns_name??"broker")}${field("broker.port","MQTT 포트",bk.port??1883,"number")}</div>`;
+  h+=`<h2 style="margin-top:16px">폴백 AP</h2><p class="hint" style="margin:0 0 8px">공유기가 안 보이거나 끊기면 이 AP를 띄워 노드를 묶는다. SSID·비밀번호는 노드의 wifi.fallback_ssid·fallback_password와 같게.</p><div class="grid">${field("fallback.enabled","자동 전환 켜기",fb.enabled,"bool")}${field("fallback.ssid","AP 이름",fb.ssid??"RV-FALLBACK")}${field("fallback.password","AP 비밀번호 (8~63자)",fb.password_set,"password")}${field("fallback.address","AP 주소 (= 노드가 보는 브로커)",fb.address??"192.168.4.1/24")}${field("fallback.after_s","끊기고 AP까지 (초)",fb.after_s??60,"number")}${field("fallback.rescan_s","AP 중 공유기 찾기 주기 (초)",fb.rescan_s??30,"number")}${field("fallback.sta_retry_s","스캔 안 될 때 공유기 시도 주기 (초, 0=안 함)",fb.sta_retry_s??300,"number")}${field("fallback.iface","무선 인터페이스",fb.iface??"wlan0")}</div>`;
   h+=`<h2 style="margin-top:16px">웹</h2><div class="grid">${field("web.port","포트",w.port??80,"number")}${field("web.password","접속 비밀번호 (비우면 없음)",w.password_set,"password")}</div>`;
   h+=`<h2 style="margin-top:16px">장치</h2>`;
   (c.devices||[]).forEach((d,i)=>{
@@ -392,5 +498,38 @@ function vstop(){$("#vimg").src="";$("#vimg").style.display="none";$("#vbtn").te
 $("#vbtn").onclick=()=>{if(!vslug)return;if($("#vimg").style.display==="none"){$("#vimg").src=`api/video/${vslug}.mjpeg?t=${Date.now()}`;$("#vimg").style.display="";$("#vbtn").textContent="멈춤"}else vstop()};
 $("#vsnap").onclick=()=>{if(!vslug)return;vstop();$("#vimg").src=`api/video/${vslug}.jpg?t=${Date.now()}`;$("#vimg").style.display=""};
 document.addEventListener("visibilitychange",()=>{if(document.hidden)vstop()});  // 탭을 숨기면 캡처를 놓는다
-load();status();setInterval(status,1000);
+const wpost=(u,b,m="POST")=>fetch(u,{method:m,headers:{"Content-Type":"application/json"},body:b?JSON.stringify(b):undefined}).then(r=>r.json());
+const wmsg=(t,bad)=>{$("#wmsg").innerHTML=bad?`<span class="off">${esc(t)}</span>`:esc(t)};
+const MODE={sta:["on","공유기"],ap:["on","폴백 AP"],connecting:["off","연결 중"],down:["off","연결 안 됨"]};
+async function wifi(){
+  let w;try{w=await (await fetch("api/wifi")).json()}catch(e){return}
+  if(!w.available){$("#wstat").innerHTML=`<span class="pill off">Wi-Fi 제어 안 됨</span> <span class="hint">${esc(w.error)}</span>`;$("#wbanner").innerHTML="";return}
+  const [c,t]=MODE[w.mode]||["off",w.mode];
+  $("#wsub").textContent=`${w.iface} · ${w.ip||"주소 없음"}`;
+  $("#wbanner").innerHTML=w.mode==="ap"?`<div class="banner"><b>폴백 AP ${esc(w.ap_ssid)} 상태</b> — 노드들은 이 AP에 붙고 이 보드(${esc(w.ap_address)})를 브로커로 쓴다. 공유기 SSID·비밀번호를 넣고 <b>저장하고 연결</b>을 누르면 AP가 꺼지고 공유기로 간다. 이 페이지도 끊긴다 — 붙으면 공유기 쪽 http://radxa.local/ 에서, 못 붙으면 약 40초 뒤 AP가 다시 뜬다.${w.hold_s?` (웹에서 켠 AP라 ${Math.ceil(w.hold_s/60)}분 동안은 공유기가 보여도 유지)`:""}</div>`:"";
+  $("#wstat").innerHTML=`<span class="pill ${c}">${t}</span> <b>${esc(w.ssid||"")}</b> <span class="hint">${w.enabled?`자동 전환 켜짐 — 공유기가 끊기면 AP로, AP 중에는 공유기를 찾아 돌아간다${w.down_s!=null?` · 끊긴 지 ${w.down_s}초`:""}`:"자동 전환 꺼짐 (아래 설정 › 폴백 AP)"}</span>`;
+  $("#wnets").innerHTML=(w.networks||[]).map(n=>`<div class="net"><b>${esc(n)}</b>${w.mode==="sta"&&n===w.ssid?'<span class="pill on">연결됨</span>':""}<div class="btns"><button class="sec" data-conn="${esc(n)}">연결</button><button class="sec" data-del="${esc(n)}">지우기</button></div></div>`).join("")||'<div class="hint">없음 — 아래에 넣는다</div>';
+  $("#wlog").innerHTML=(w.events||[]).slice().reverse().map(e=>`<div>${new Date(e.t*1000).toLocaleString()} · ${esc(e.msg)}</div>`).join("")||"없음";
+  if(w.last_scan)fillScan(w.last_scan,false);
+}
+function fillScan(nets,show){
+  $("#wscanlist").innerHTML=nets.map(n=>`<option value="${esc(n.ssid)}">`).join("");
+  if(show)$("#wscanres").innerHTML=`<table>${nets.map(n=>`<tr><td><a href="#" data-pick="${esc(n.ssid)}">${esc(n.ssid)}</a></td><td>${n.signal??"?"}${n.signal!=null&&n.signal<0?" dBm":"%"}${n.security?" · "+esc(n.security):""}</td></tr>`).join("")}</table>`;
+}
+async function wsave(connect){
+  const r=await wpost("api/wifi/networks",{ssid:$("#wssid").value.trim(),password:$("#wpw").value,connect});
+  if(!r.ok)return wmsg(r.error,true);
+  $("#wpw").value="";wmsg(connect?"저장했다. 공유기로 바꾸는 중 — 이 페이지가 잠시 끊길 수 있다.":"저장했다.");wifi();
+}
+$("#wsave").onclick=()=>wsave(false);$("#wsaveconn").onclick=()=>wsave(true);
+$("#wscan").onclick=async()=>{wmsg("찾는 중…");try{const r=await (await fetch("api/wifi/scan")).json();if(!r.ok)return wmsg(r.error,true);fillScan(r.networks,true);wmsg(`${r.networks.length}개`)}catch(e){wmsg(e.message,true)}};
+$("#wscanres").onclick=e=>{const a=e.target.closest("[data-pick]");if(a){e.preventDefault();$("#wssid").value=a.dataset.pick;$("#wpw").focus()}};
+$("#wnets").onclick=async e=>{
+  const b=e.target.closest("button");if(!b)return;
+  if(b.dataset.del){if(!confirm(`${b.dataset.del} 를 지울까?`))return;const r=await wpost(`api/wifi/networks/${encodeURIComponent(b.dataset.del)}`,null,"DELETE");wmsg(r.ok?"지웠다.":(r.error||"없다"),!r.ok);wifi()}
+  else if(b.dataset.conn){const r=await wpost("api/wifi/mode",{to:"sta",ssid:b.dataset.conn});wmsg(r.ok?`${b.dataset.conn}에 붙는 중…`:r.error,!r.ok)}
+};
+$("#wap").onclick=async()=>{if(!confirm("폴백 AP를 켤까? 공유기 쪽에서 보고 있으면 이 페이지가 끊긴다."))return;const r=await wpost("api/wifi/mode",{to:"ap"});wmsg(r.ok?"AP를 켜는 중…":r.error,!r.ok)};
+$("#wsta").onclick=async()=>{const r=await wpost("api/wifi/mode",{to:"sta"});wmsg(r.ok?"공유기에 붙는 중…":r.error,!r.ok)};
+load();status();wifi();setInterval(status,1000);setInterval(wifi,5000);
 </script></body></html>"""

@@ -11,11 +11,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from . import __version__, ha
+from . import __version__, broker, ha
 from .config import Config
 from .device import Device
 from .devices import create
 from .mqtt import Bus
+from .wifi import Wifi
 
 log = logging.getLogger("rvnode")
 
@@ -56,6 +57,7 @@ class Node:
             if not d.enabled or (only and d.slug not in only):
                 continue
             self.devices.append(create(d, self))
+        self.wifi = Wifi(cfg.fallback)
         self.started = time.monotonic()
         self.exit_code: int | None = None
         self._stop = asyncio.Event()
@@ -142,6 +144,8 @@ class Node:
             "cpu_temp": round(int(temp) / 1000, 1) if temp.isdigit() else None,
             "load1": load1,
             "mqtt_broker": f"{self.cfg.mqtt.host}:{self.cfg.mqtt.port}",
+            "broker": {"enabled": self.cfg.broker.enabled, "mdns": f"{self.cfg.broker.mdns_name}.local"},
+            "wifi": {k: v for k, v in self.wifi.info().items() if k != "events"},
             "base_topic": self.base,
             "mqtt_published": self.bus.published,
             "mqtt_failed": self.bus.failed,
@@ -184,7 +188,12 @@ class Node:
             tasks = [
                 tg.create_task(self._supervised("mqtt", self.bus.run), name="mqtt"),
                 tg.create_task(self._supervised("sysinfo", self._sys_info_loop), name="sysinfo"),
+                tg.create_task(self._supervised("wifi", self.wifi.run), name="wifi"),
             ]
+            if self.cfg.broker.enabled:
+                b = self.cfg.broker
+                tasks.append(tg.create_task(self._supervised("beacon", lambda: broker.beacon_loop(b)), name="beacon"))
+                tasks.append(tg.create_task(self._supervised("mdns", lambda: broker.mdns_loop(b, self.cfg.fallback.iface)), name="mdns"))
             if self.cfg.web.enabled:
                 from . import web
 

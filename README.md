@@ -68,6 +68,22 @@ python3 -m venv .venv
   부팅 중 핀 35가 High로 튀지 않는지 본다.
 - 아직 없는 것: GPS로 주행을 판단해 후방으로 바꾸는 규칙([docs/29](docs/29-radxa-node.md) §1 결정 5) — gps 모듈이 생기면 붙인다.
 
+## 브로커 탐색·폴백 AP
+
+설정 `broker`·`fallback` (`config.example.yaml`), 웹 맨 위 **Wi-Fi** 칸. 규칙은 docs/29 §3.3·§3.4.
+
+- `broker.enabled`: UDP 비콘(47300, `essio-broker broker 1883`) + avahi로 `broker.local` 별칭·`_mqtt._tcp`. 호스트명 `radxa.local`은 그대로.
+  **ESP 브로커를 끈 뒤에 켠다** — 둘이 같이 있으면 노드마다 다른 브로커에 붙는다. `mqtt.host`는 `localhost`로.
+- `fallback.enabled`: 부팅 때 저장된 공유기가 안 보이거나 공유기가 `after_s` 넘게 끊기면 NM으로 `RV-FALLBACK` AP(192.168.4.1, DHCP)를 띄운다.
+  AP 중에는 `rescan_s`마다 공유기를 찾아 보이면 돌아가고, 40초 안에 못 붙으면 AP로 돌아온다. SSID·비밀번호는 노드의 `wifi.fallback_*`와 같게.
+- 공유기 SSID·비밀번호는 웹 Wi-Fi 칸에서 넣는다 → NetworkManager 프로필(`/etc/rvnode.yaml`에는 들어가지 않는다).
+  AP 상태면 폰을 `RV-FALLBACK`에 붙이고 http://192.168.4.1/ 에서 넣고 **저장하고 연결**.
+- 웹에서 AP를 켜면 10분 동안은 공유기가 보여도 내려가지 않는다(설정하는 동안 끊기지 않게).
+- 권한·패키지는 `deploy.sh`가 매번 맞춘다: avahi-utils·iw·dnsmasq-base, NetworkManager polkit 규칙(rvnode), sudo `iw dev wlan0 scan ap-force`.
+  인터페이스가 `wlan0`이 아니면 sudo 규칙도 고친다.
+- 보드에서 처음: `iw list`의 "Supported interface modes"에 AP가 있는지, `nmcli connection up rv-fallback` 뒤 폰에서 붙고 192.168.4.x를 받는지,
+  AP 중 `sudo iw dev wlan0 scan ap-force`가 되는지(안 되면 `sta_retry_s`로 돈다), AP와 BLE를 같이 돌려도 BLE가 버티는지 본다.
+
 ## 장치 모듈 추가
 
 1. `rvnode/devices/<type>.py`에 `Device`를 상속한 클래스를 만듭니다. `dummy.py`를 본보기로 씁니다.

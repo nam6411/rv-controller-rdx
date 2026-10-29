@@ -16,7 +16,7 @@ import yaml
 
 from .config import BridgeConfig, Config, parse
 
-SECRETS = (("mqtt", "password"), ("bridge", "password"), ("web", "password"))
+SECRETS = (("mqtt", "password"), ("bridge", "password"), ("web", "password"), ("fallback", "password"))
 BRIDGE_CONF = Path(os.environ.get("RVNODE_BRIDGE_CONF", "/etc/mosquitto/conf.d/rv-bridge.conf"))
 
 
