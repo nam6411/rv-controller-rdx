@@ -91,12 +91,6 @@ sudo systemctl enable mosquitto >/dev/null 2>&1
 sudo systemctl reset-failed mosquitto 2>/dev/null || true
 sudo systemctl restart mosquitto || echo 'mosquitto failed — rvnode will rewrite the bridge file'
 sudo systemctl enable rvnode >/dev/null 2>&1
-# 원격 보기 터널 — cloudflared가 깔려 있을 때만 (docs/30 §4.3, 설치는 README)
-if [ -x /usr/bin/cloudflared ]; then
-  sudo install -m 644 $DEST/src/systemd/rv-rtsp-tunnel.service /etc/systemd/system/rv-rtsp-tunnel.service
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now rv-rtsp-tunnel >/dev/null 2>&1
-fi
 sudo systemctl restart rvnode
 # 전원이 곧 끊겨도 방금 쓴 유닛·설정이 빈 파일로 남지 않게 (2026-10-29: 배포 직후 전원이 나가 0바이트가 됐다)
 sync

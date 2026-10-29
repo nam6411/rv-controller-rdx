@@ -2,10 +2,10 @@
 # Lightsail(ls)에 버드뷰 원격 보기용 go2rtc를 세운다 (docs/30 §5). ls에서 한 번 실행: sudo sh setup.sh
 # 다시 실행해도 된다 — 비밀값은 처음 만든 것을 쓰고 설정·컨테이너만 새로 쓴다.
 #
-#   Radxa ─cloudflared access tcp─▶ caravan-rtsp.nam6411.com ─(터널 ha-lightsail)─▶ localhost:8554 go2rtc ◀─ HA
+#   Radxa ─RTSP(TCP, 계정)─▶ mqtt.nam6411.com:8554 go2rtc ◀─ HA (172.17.0.1:8554)
 #
-# - 컨테이너는 host 네트워크: cloudflared(host)가 localhost:8554로, HA(bridge)가 172.17.0.1:8554로 붙는다.
-#   Lightsail 방화벽이 8554를 막고 있어 바깥에서 직접은 못 들어온다.
+# - 컨테이너는 host 네트워크. Lightsail 방화벽에서 TCP 8554를 연다.
+# - go2rtc는 localhost(127.0.0.1)에서 온 접속에는 계정을 묻지 않는다 — 8554 앞에 같은 서버의 프록시·터널을 두지 않는다.
 # - api(1984)는 127.0.0.1에만. WebRTC는 쓰지 않는다 (HA가 RTSP로 받아 자기 WebRTC/HLS로 낸다).
 # - MQTT 계정 go2rtc를 mosquitto 비밀번호 파일에 더한다 (bv_request.py가 송출 요청을 보낸다).
 set -eu

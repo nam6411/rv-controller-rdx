@@ -3,7 +3,7 @@
 ffmpeg 하나를 세션 내내 띄워 두고 표준 입력으로 JPEG를 넣는다. 라이브 ↔ 일시정지를 바꿔도 ffmpeg·송출 연결은 그대로다.
 - 라이브: Video.frames()의 JPEG를 그대로 넘긴다 (그동안 캡처 장치가 열린다)
 - 일시정지: frames()를 닫고(장치가 쉰다) 마지막 프레임을 어둡게 한 안내 화면을 pause_fps로 넘긴다
-송출 주소는 Radxa 설정(push.url — 보통 cloudflared access tcp가 여는 로컬 포트)이고, MQTT로는 경로·계정만 받는다.
+송출 주소의 호스트는 Radxa 설정(push.url — ls go2rtc, Lightsail 방화벽 TCP 8554)으로 고정하고, MQTT로는 경로·계정만 받는다.
 
 명령 (control/push/set, JSON): start {id, path, user, pass} · keepalive {id} · stop {id} · extend
 """
@@ -40,7 +40,7 @@ class Session:
 
 
 def push_url(base: str, path: str, user: str, pw: str) -> str:
-    """rtsp://127.0.0.1:8554 + 경로 + 계정. 경로는 go2rtc가 만든 무작위 이름만 받는다."""
+    """rtsp://<ls>:8554 + 경로 + 계정. 경로는 go2rtc가 만든 무작위 이름만 받는다."""
     if not PATH_RE.match(path):
         raise ValueError(f"bad path {path!r}")
     scheme, rest = base.rstrip("/").split("://", 1)
@@ -80,7 +80,7 @@ class Pusher:
     def __init__(self, video: Video, params: dict[str, Any]):
         self.video = video
         self.log = video.log
-        self.base = str(params.get("url", "rtsp://127.0.0.1:8554"))
+        self.base = str(params.get("url", "rtsp://mqtt.nam6411.com:8554"))
         self.encoder = str(params.get("encoder", "libx264"))
         self.fps = int(params.get("fps", video.fps))
         self.kbps = int(params.get("kbps", 1500))

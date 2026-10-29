@@ -73,7 +73,7 @@ def test_push_session_commands(monkeypatch):
         start = {"cmd": "start", "id": "a", "path": "xyz", "user": "u", "pass": "p"}
         assert await d.write_control("push", json.dumps(start))
         await asyncio.sleep(0)
-        assert runs[0].url == "rtsp://u:p@127.0.0.1:8554/xyz"
+        assert runs[0].url == "rtsp://u:p@mqtt.nam6411.com:8554/xyz"
         st = d.state()["push"]
         assert st["streaming"] and st["mode"] == "live" and 58 <= st["left_s"] <= 60
         assert await d.write_control("push", json.dumps(start))           # 같은 id → keepalive, 새로 띄우지 않는다

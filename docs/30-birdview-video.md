@@ -128,16 +128,19 @@ rtsp:
 ### 4.3 rvnode `devices/video.py` — 송출
 
 > **2026-10-30 구현 (radxa `rvnode/devices/video_push.py`) — 아래 계획과 다른 점:**
-> - **송출 경로는 Cloudflare 터널.** Lightsail 방화벽은 8554를 열지 않는다. Radxa의 `rv-rtsp-tunnel.service`
->   (`cloudflared access tcp --hostname caravan-rtsp.nam6411.com --url 127.0.0.1:8554`)가 로컬 포트를 열고,
->   터널 `ha-lightsail`의 TCP 규칙이 ls `localhost:8554`(go2rtc)로 넘긴다. LTE CGNAT에서도 그대로 된다.
+> - **송출은 Lightsail에 직접 RTSP(TCP 8554).** Lightsail 방화벽에서 8554를 열었다(2026-10-30). Cloudflare 터널
+>   (`cloudflared access tcp`)도 시험했으나 쓰지 않는다 — 터널로 들어온 접속은 go2rtc에 127.0.0.1로 보이고, go2rtc는
+>   localhost에는 RTSP 계정을 묻지 않아 Access 같은 앞단 인증이 따로 필요하다. 직접 접속은 go2rtc가 Basic 인증을 요구한다
+>   (계정 없이 `401` 확인). 영상·계정은 평문 — §7.2 "1차는 평문 + 계정"대로.
 > - **명령은 `rv/radxa/video/control/push/set`**, `start`에 `url` 대신 `path`·`user`·`pass`. 송출 주소의 호스트는
->   Radxa 설정 `push.url`(기본 `rtsp://127.0.0.1:8554`)로 고정이라 `allowed_host`가 필요 없다. 경로는 `[A-Za-z0-9_-]`만.
+>   Radxa 설정 `push.url`(기본 `rtsp://mqtt.nam6411.com:8554`)로 고정이라 `allowed_host`가 필요 없다. 경로는 `[A-Za-z0-9_-]`만.
 >   숨은 명령(HA에 안 올림)이라 로그에 내용을 남기지 않는다.
 > - 프레임은 로컬 go2rtc 대신 rvnode `Video.frames()`(§4.2 바뀜). 인코더는 Debian ffmpeg의 **libx264**
 >   (rkmpp 빌드 없음): 720p 10fps 1.5 Mbps에서 CPU 약 0.55코어. fps는 캡처와 같은 10.
 > - HA 엔티티: `binary_sensor` 송출 중(`push.streaming`), `sensor` 모드(`live`/`paused`/`off`)·라이브 남은 초,
 >   `button` 이어보기(`control/extend/set` PRESS).
+> - 실제 확인(2026-10-30): ls go2rtc에서 열면 첫 화면까지 **1.9초**, HA `camera.birdview` 스냅샷 7초. 나가면 송출 끝.
+>   HA는 generic camera `rtsp://172.17.0.1:8554/birdview`(계정은 ls `/opt/go2rtc/secrets.env`), 대시보드 하위 화면 `/caravan/birdview`.
 > - 작업대 확인: ffmpeg RTSP 수신(`-rtsp_flags listen`)으로 받아 1280×720 H.264, 1분 뒤 일시정지 화면
 >   (Noto Sans CJK 글자) + 캡처 장치 닫힘, 이어보기로 라이브 복귀, keepalive·stop 확인.
 - 명령 토픽 `rv/<radxa>/control/video/set` (JSON):

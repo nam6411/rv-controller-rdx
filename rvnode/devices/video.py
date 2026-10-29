@@ -9,7 +9,7 @@ params:
   width/height 1280×720
   fps          10 (장치가 가까운 값으로 맞춘다 — 720p는 60·50·30·20·10)
   idle_s       마지막 구독자가 떠난 뒤 이만큼 지나면 장치를 닫는다 (기본 5)
-  push         원격 송출 (video_push.py): url rtsp://127.0.0.1:8554 (cloudflared access tcp), encoder libx264,
+  push         원격 송출 (video_push.py): url rtsp://mqtt.nam6411.com:8554 (ls go2rtc), encoder libx264,
                fps(기본 위 fps), kbps 1500, keepalive_s 30, live_s 60, pause_fps 1
 """
 
