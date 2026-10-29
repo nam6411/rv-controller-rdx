@@ -12,6 +12,9 @@ GET  /api/wifi/scan           주변 Wi-Fi
 POST /api/wifi/networks       공유기 저장 {ssid, password, connect} — 비밀번호는 NM 프로필에만
 DELETE /api/wifi/networks/{ssid}
 POST /api/wifi/mode           {"to": "ap"} 폴백 AP 켜기 / {"to": "sta", "ssid": ""} 공유기로
+GET  /api/ble                 BLE 장치(JBD·MACH·TPMS)와 지금 설정된 주소(ID)
+GET  /api/ble/scan?s=8        주변 BLE를 s초 듣고 종류를 짐작해 돌려준다
+PUT  /api/ble/{slug}          주소(ID) 바꾸기 {address, sensor(TPMS 자리)} → 설정 저장 → rvnode 재시작
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
-from . import settings
+from . import blescan, settings
 from .config import ConfigError, load_raw
 from .wifi import WifiUnavailable, check_network
 
@@ -48,6 +51,9 @@ def make_app(node: Node) -> web.Application:
     app.router.add_post("/api/wifi/networks", _wifi_save)
     app.router.add_delete("/api/wifi/networks/{ssid}", _wifi_forget)
     app.router.add_post("/api/wifi/mode", _wifi_mode)
+    app.router.add_get("/api/ble", _ble)
+    app.router.add_get("/api/ble/scan", _ble_scan)
+    app.router.add_put("/api/ble/{slug}", _ble_assign)
     return app
 
 
@@ -224,6 +230,54 @@ async def _wifi_mode(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def _ble(request: web.Request) -> web.Response:
+    node: Node = request.app["node"]
+    running = {d.slug: d for d in node.devices}
+    items = blescan.current(load_raw(node.cfg_path))
+    for it in items:
+        d = running.get(it["slug"])
+        st = d.state() if d else {}
+        it["online"] = bool(d and d.online)
+        if it["type"] == "tpms":
+            for sn in it["sensors"]:
+                v = st.get(sn["name"]) or {}
+                sn.update(online=bool(v.get("online")), rssi=v.get("rssi"), age_s=v.get("age_s"))
+        else:
+            it["connected"] = bool((st.get("ble") or {}).get("connected"))
+    return web.json_response({"devices": items})
+
+
+async def _ble_scan(request: web.Request) -> web.Response:
+    try:
+        secs = min(20.0, max(3.0, float(request.query.get("s", 8))))
+    except ValueError:
+        secs = 8.0
+    try:
+        found = await blescan.scan(secs)
+    except ImportError:
+        return web.json_response({"ok": False, "error": "bleak가 없다 (보드에서만 된다)"}, status=503)
+    except Exception as e:
+        log.exception("ble scan")
+        return web.json_response({"ok": False, "error": str(e) or type(e).__name__}, status=500)
+    return web.json_response({"ok": True, "seconds": secs, "devices": found})
+
+
+async def _ble_assign(request: web.Request) -> web.Response:
+    node: Node = request.app["node"]
+    try:
+        body = await request.json()
+        new = blescan.assign(load_raw(node.cfg_path), request.match_info["slug"], str(body.get("address", "")),
+                             str(body.get("sensor", "")))
+        settings.save_raw(node.cfg_path, new)
+    except (ValueError, ConfigError) as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+    except Exception as e:
+        return web.json_response({"ok": False, "error": str(e) or type(e).__name__}, status=400)
+    log.warning("ble: %s ← %s %s via web — restarting", request.match_info["slug"], body.get("sensor", ""), body.get("address", ""))
+    asyncio.get_running_loop().call_later(1.0, node.stop, 1)
+    return web.json_response({"ok": True, "restart": True})
+
+
 async def _command(request: web.Request) -> web.Response:
     node: Node = request.app["node"]
     slug, kind, name = request.match_info["slug"], request.match_info["kind"], request.match_info["name"]
@@ -296,6 +350,13 @@ button.sec{background:transparent;color:var(--accent);border:1px solid var(--acc
 <button class="sec" id="wap" type="button">폴백 AP 켜기</button><button class="sec" id="wsta" type="button">공유기로 다시 연결</button></div>
 <div id="wmsg" class="hint" style="margin-top:6px"></div><div id="wscanres"></div>
 <details style="margin-top:8px"><summary class="hint">전환 기록</summary><div id="wlog" class="hint"></div></details>
+</section>
+<section class="card" id="blecard"><h2>BLE 장치 <span class="hint">BMS·MACH·TPMS 주소(ID) 고르기 — 바꾸면 rvnode가 다시 시작한다</span></h2>
+<div id="blecur">불러오는 중…</div>
+<div class="btns" style="align-items:center"><button id="blescan" type="button">주변 BLE 찾기 (8초)</button><button class="sec" id="blereload" type="button">새로고침</button>
+<label class="chk" style="font-size:13px"><input type="checkbox" id="bleall"> 종류를 모르는 장치도 보기</label></div>
+<div id="blemsg" class="hint" style="margin-top:6px"></div><div id="bleres" style="overflow-x:auto"></div>
+<p class="hint">연결된 BLE 장치는 광고를 멈추므로 스캔에 안 보인다. TPMS ID는 BLE 주소가 아니라 센서가 광고에 싣는 ID다.</p>
 </section>
 <section class="card" id="mapcard" hidden><h2>위치 <span class="hint" id="maddr"></span></h2><div id="map" style="height:320px;border-radius:6px;background:var(--bg)"></div><div class="btns"><button class="sec" id="mfollow">따라가기 켜짐</button><a class="hint" id="mlink" target="_blank" rel="noopener"></a></div></section>
 <section class="card" id="videocard" hidden><h2>영상 <span class="hint" id="vinfo"></span></h2><div class="btns"><button id="vbtn">보기</button><button class="sec" id="vsnap">한 장</button></div><img id="vimg" alt="" style="display:none;width:100%;max-width:960px;margin-top:8px;border-radius:6px;background:#000"></section>
@@ -531,5 +592,59 @@ $("#wnets").onclick=async e=>{
 };
 $("#wap").onclick=async()=>{if(!confirm("폴백 AP를 켤까? 공유기 쪽에서 보고 있으면 이 페이지가 끊긴다."))return;const r=await wpost("api/wifi/mode",{to:"ap"});wmsg(r.ok?"AP를 켜는 중…":r.error,!r.ok)};
 $("#wsta").onclick=async()=>{const r=await wpost("api/wifi/mode",{to:"sta"});wmsg(r.ok?"공유기에 붙는 중…":r.error,!r.ok)};
-load();status();wifi();setInterval(status,1000);setInterval(wifi,5000);
+const KIND={jbd:"BMS",mach:"MACH",tpms:"TPMS"};
+let bleDevs=[],bleFound=[];
+const bmsg=(t,bad)=>{$("#blemsg").innerHTML=bad?`<span class="off">${esc(t)}</span>`:esc(t)};
+function bleTargets(){  // [{key, label, type, slug, sensor, cur}]
+  const t=[];
+  for(const d of bleDevs){
+    if(d.type==="tpms")for(const s of d.sensors)t.push({key:`${d.slug}|${s.name}`,label:`${d.label} · ${s.label}`,type:"tpms",slug:d.slug,sensor:s.name,cur:s.id});
+    else t.push({key:`${d.slug}|`,label:d.label,type:d.type,slug:d.slug,sensor:"",cur:d.address});
+  }
+  return t;
+}
+function bleCur(){
+  const row=(tg,extra)=>`<div class="net"><b>${esc(tg.label)}</b>${extra}<span class="hint">${KIND[tg.type]}</span>
+    <div class="btns"><input style="width:15em;font-family:ui-monospace,Menlo,monospace;font-size:13px" data-bkey="${esc(tg.key)}" value="${esc(tg.cur||"")}" placeholder="${tg.type==="tpms"?"센서 ID":"AA:BB:CC:DD:EE:FF"}">
+    <button class="sec" data-bsave="${esc(tg.key)}">저장</button></div></div>`;
+  let h="";
+  for(const d of bleDevs){
+    if(d.type==="tpms"){for(const s of d.sensors){const tg=bleTargets().find(x=>x.key===`${d.slug}|${s.name}`);
+      h+=row(tg,` <span class="pill ${s.online?"on":"off"}">${s.online?"수신":"끊김"}</span>${s.rssi!=null?` <span class="hint">${s.rssi} dBm</span>`:""}`)}}
+    else{const tg=bleTargets().find(x=>x.key===`${d.slug}|`);
+      h+=row(tg,` <span class="pill ${d.connected?"on":"off"}">${d.enabled===false?"꺼짐":d.connected?"연결됨":"연결 안 됨"}</span>${!d.address&&d.name?` <span class="hint">이름 ${esc(d.name)}로 찾는 중</span>`:""}`)}
+  }
+  $("#blecur").innerHTML=h||'<div class="hint">설정에 BLE 장치가 없다</div>';
+}
+async function bleLoad(){try{bleDevs=(await (await fetch("api/ble")).json()).devices||[];bleCur();if(bleFound.length)bleRes()}catch(e){$("#blecur").textContent="불러오지 못했다"}}
+function bleRes(){
+  const tgs=bleTargets(),all=$("#bleall").checked;
+  const rows=bleFound.filter(f=>all||f.kinds.length);
+  if(!rows.length){$("#bleres").innerHTML=`<p class="hint">${bleFound.length?`종류를 아는 장치가 없다 (전체 ${bleFound.length}개 — 위 체크로 본다)`:"들린 장치가 없다"}</p>`;return}
+  $("#bleres").innerHTML=`<table style="margin-top:8px"><tr><td>장치</td><td>신호</td><td>지정</td></tr>${rows.map((f,i)=>{
+    const val=k=>k==="tpms"&&f.tpms?f.tpms.id:f.address;
+    const opts=tgs.filter(t=>!f.kinds.length||f.kinds.includes(t.type));
+    const used=tgs.filter(t=>t.cur&&(t.cur.toLowerCase()===f.address.toLowerCase()||(f.tpms&&t.cur.toLowerCase()===f.tpms.id))).map(t=>t.label);
+    const tp=f.tpms?`<div class="hint">TPMS ID <code>${esc(f.tpms.id)}</code> · ${f.tpms.bar} bar · ${f.tpms.temp_c}°C · 배터리 ${f.tpms.battery}%</div>`:"";
+    return `<tr><td><b>${esc(f.name||"(이름 없음)")}</b> ${f.kinds.map(k=>`<span class="pill on">${KIND[k]}</span>`).join(" ")}${used.length?` <span class="pill on" style="color:var(--accent)">지금: ${esc(used.join(", "))}</span>`:""}
+      <div class="hint"><code>${esc(f.address)}</code> · 광고 ${f.count}번</div>${tp}</td><td>${f.rssi??"?"} dBm</td>
+      <td>${opts.length?`<select data-bsel="${i}" style="width:auto;max-width:14em">${opts.map(t=>`<option value="${esc(t.key)}" data-v="${esc(val(t.type))}">${esc(t.label)}</option>`).join("")}</select> <button class="sec" data-bset="${i}" style="padding:4px 10px;font-size:13px">지정</button>`:'<span class="hint">맞는 자리 없음</span>'}</td></tr>`}).join("")}</table>`;
+}
+async function bleSave(key,value){
+  const [slug,sensor]=key.split("|");const tg=bleTargets().find(t=>t.key===key);
+  if(!confirm(`${tg?tg.label:slug} → ${value||"(비움)"}\n저장하면 rvnode가 다시 시작한다.`))return;
+  const r=await fetch(`api/ble/${encodeURIComponent(slug)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:value,sensor})}).then(r=>r.json());
+  if(!r.ok)return bmsg(r.error,true);
+  bmsg("저장했다. 다시 시작하는 중…");setTimeout(async function w(){try{await fetch("api/status");bmsg("다시 시작했다.");bleLoad();load()}catch(e){setTimeout(w,1500)}},3000);
+}
+$("#blecur").onclick=e=>{const b=e.target.closest("[data-bsave]");if(b)bleSave(b.dataset.bsave,document.querySelector(`[data-bkey="${CSS.escape(b.dataset.bsave)}"]`).value.trim())};
+$("#bleres").onclick=e=>{const b=e.target.closest("[data-bset]");if(!b)return;const sel=document.querySelector(`[data-bsel="${b.dataset.bset}"]`);bleSave(sel.value,sel.selectedOptions[0].dataset.v)};
+$("#bleall").onchange=bleRes;$("#blereload").onclick=bleLoad;
+$("#blescan").onclick=async()=>{
+  $("#blescan").disabled=true;bmsg("8초 동안 듣는 중…");
+  try{const r=await (await fetch("api/ble/scan?s=8")).json();if(!r.ok){bmsg(r.error,true);return}
+    bleFound=r.devices;bmsg(`${r.devices.length}개 들림 — 종류를 아는 것 ${r.devices.filter(f=>f.kinds.length).length}개`);await bleLoad();bleRes()}
+  catch(e){bmsg(e.message,true)}finally{$("#blescan").disabled=false}
+};
+load();status();wifi();bleLoad();setInterval(status,1000);setInterval(wifi,5000);
 </script></body></html>"""
