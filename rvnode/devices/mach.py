@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ..ble import connect_lock, scanner
+from ..ble import connecting, scanner
 from ..device import Control, Device, Sensor, Switch
 from ..frames import aventa as av
 from ..frames import mach as m
@@ -170,7 +170,7 @@ class Mach(Device):
         from ..bluez_agent import ensure_agent
 
         await ensure_agent(self.pin)
-        async with connect_lock:
+        async with connecting():
             await self._connect_locked()
 
     async def _connect_locked(self) -> None:

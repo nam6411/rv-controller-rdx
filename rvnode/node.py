@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__, broker, ha
+from .ble import scanner as ble_scanner
 from .config import Config
 from .device import Device
 from .devices import create
@@ -146,6 +147,7 @@ class Node:
             "mqtt_broker": f"{self.cfg.mqtt.host}:{self.cfg.mqtt.port}",
             "broker": {"enabled": self.cfg.broker.enabled, "mdns": f"{self.cfg.broker.mdns_name}.local"},
             "wifi": {k: v for k, v in self.wifi.info().items() if k != "events"},
+            "ble_scan": ble_scanner.info(),
             "base_topic": self.base,
             "mqtt_published": self.bus.published,
             "mqtt_failed": self.bus.failed,
