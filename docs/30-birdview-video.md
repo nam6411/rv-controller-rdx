@@ -126,6 +126,20 @@ rtsp:
 - 보는 쪽(rvnode 또는 차 안 브라우저)이 붙을 때만 장치를 연다. 일시정지 동안 rvnode가 연결을 닫으므로 캡처 장치도 닫힌다.
 
 ### 4.3 rvnode `devices/video.py` — 송출
+
+> **2026-10-30 구현 (radxa `rvnode/devices/video_push.py`) — 아래 계획과 다른 점:**
+> - **송출 경로는 Cloudflare 터널.** Lightsail 방화벽은 8554를 열지 않는다. Radxa의 `rv-rtsp-tunnel.service`
+>   (`cloudflared access tcp --hostname caravan-rtsp.nam6411.com --url 127.0.0.1:8554`)가 로컬 포트를 열고,
+>   터널 `ha-lightsail`의 TCP 규칙이 ls `localhost:8554`(go2rtc)로 넘긴다. LTE CGNAT에서도 그대로 된다.
+> - **명령은 `rv/radxa/video/control/push/set`**, `start`에 `url` 대신 `path`·`user`·`pass`. 송출 주소의 호스트는
+>   Radxa 설정 `push.url`(기본 `rtsp://127.0.0.1:8554`)로 고정이라 `allowed_host`가 필요 없다. 경로는 `[A-Za-z0-9_-]`만.
+>   숨은 명령(HA에 안 올림)이라 로그에 내용을 남기지 않는다.
+> - 프레임은 로컬 go2rtc 대신 rvnode `Video.frames()`(§4.2 바뀜). 인코더는 Debian ffmpeg의 **libx264**
+>   (rkmpp 빌드 없음): 720p 10fps 1.5 Mbps에서 CPU 약 0.55코어. fps는 캡처와 같은 10.
+> - HA 엔티티: `binary_sensor` 송출 중(`push.streaming`), `sensor` 모드(`live`/`paused`/`off`)·라이브 남은 초,
+>   `button` 이어보기(`control/extend/set` PRESS).
+> - 작업대 확인: ffmpeg RTSP 수신(`-rtsp_flags listen`)으로 받아 1280×720 H.264, 1분 뒤 일시정지 화면
+>   (Noto Sans CJK 글자) + 캡처 장치 닫힘, 이어보기로 라이브 복귀, keepalive·stop 확인.
 - 명령 토픽 `rv/<radxa>/control/video/set` (JSON):
   - `{"cmd":"start","url":"rtsp://<id>:<pw>@<ls>:8554/<경로>","id":"<세션>"}` — 송출 시작(이미 송출 중이면 keepalive로 본다)
   - `{"cmd":"keepalive","id":"<세션>"}` — 10초마다. **30초 동안 없으면 멈춘다**
@@ -156,6 +170,10 @@ ffmpeg -f mjpeg -use_wallclock_as_timestamps 1 -i pipe:0 \
   HA에 `binary_sensor`(송출 중)·`sensor`(모드, 라이브 남은 초)·`button`(이어보기 → `{"cmd":"extend"}`)으로 낸다.
 
 ## 5. Lightsail (`ls`)
+
+> **2026-10-30:** 설치는 radxa 저장소 `ls/go2rtc/setup.sh`(ls에서 `sudo sh setup.sh`). 요청 스크립트는 셸 대신
+> `bv_request.py` — go2rtc 이미지(Alpine)에 `mosquitto_pub`가 없어 MQTT를 표준 라이브러리로 직접 보낸다.
+> 비밀값은 `/opt/go2rtc/secrets.env`(RTSP 계정, MQTT 계정 `go2rtc`). 컨테이너는 host 네트워크라 HA는 `172.17.0.1:8554`.
 
 ### 5.1 go2rtc 컨테이너
 HA 컨테이너와 같은 서버에 따로 띄운다(HA에 내장된 go2rtc는 설정을 바꿀 수 없다).

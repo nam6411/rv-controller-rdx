@@ -65,6 +65,7 @@ class Control:
     unit: str = ""
     options: tuple[str, ...] = ()
     avail: str | None = None
+    discover: bool = True  # False면 HA에 올리지 않는다 (다른 프로그램만 쓰는 명령 — 예: video push)
 
 
 @dataclass(frozen=True)
@@ -205,11 +206,14 @@ class Device:
                     self.log.info("%s -> %s %s", name, "ON" if on else "OFF", "ok" if ok else "FAILED")
                     await self.publish_switch(name)
                 else:
-                    if name not in {c.name for c in self.controls}:
+                    c = next((c for c in self.controls if c.name == name), None)
+                    if c is None:
                         self.log.warning("unknown control '%s'", name)
                         continue
                     ok = await self.write_control(name, value)
-                    self.log.info("%s -> %s %s", name, value, "ok" if ok else "FAILED")
+                    # 숨은 명령은 계정 같은 값을 실을 수 있어 내용을 남기지 않는다
+                    self.log.log(logging.INFO if c.discover else logging.DEBUG, "%s -> %s %s", name,
+                                 value if c.discover else "(hidden)", "ok" if ok else "FAILED")
                     await self.publish_state()
             except Exception:
                 self.log.exception("command %s %s failed", kind, name)

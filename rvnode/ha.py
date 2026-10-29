@@ -138,6 +138,8 @@ def all_configs(discovery_prefix: str, info: DeviceInfo, dev: Device) -> list[tu
     for sw in dev.switches:
         out.append((config_topic(discovery_prefix, "switch", info, dev, sw.name), switch(info, dev, sw)))
     for c in dev.controls:
+        if not c.discover:
+            continue
         out.append((config_topic(discovery_prefix, c.kind, info, dev, c.name), control(info, dev, c)))
     for e in dev.events:
         out.append((config_topic(discovery_prefix, "event", info, dev, e.name), event(info, dev, e)))

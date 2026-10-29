@@ -9,6 +9,8 @@ params:
   width/height 1280×720
   fps          10 (장치가 가까운 값으로 맞춘다 — 720p는 60·50·30·20·10)
   idle_s       마지막 구독자가 떠난 뒤 이만큼 지나면 장치를 닫는다 (기본 5)
+  push         원격 송출 (video_push.py): url rtsp://127.0.0.1:8554 (cloudflared access tcp), encoder libx264,
+               fps(기본 위 fps), kbps 1500, keepalive_s 30, live_s 60, pause_fps 1
 """
 
 from __future__ import annotations
@@ -19,7 +21,8 @@ import os
 import time
 from typing import Any
 
-from ..device import BinarySensor, Device
+from ..device import BinarySensor, Control, Device, Sensor
+from .video_push import Pusher
 
 SOI, EOI = b"\xff\xd8\xff", b"\xff\xd9"
 MAX_FRAME = 2 * 1024 * 1024
@@ -51,7 +54,12 @@ def default_device() -> str:
 
 class Video(Device):
     type = "video"
-    binary_sensors = (BinarySensor("capturing", "Capturing", "capturing", "running"),)
+    binary_sensors = (BinarySensor("capturing", "Capturing", "capturing", "running"),
+                      BinarySensor("streaming", "Remote streaming", "push.streaming", "running"))
+    sensors = (Sensor("push_mode", "Remote view", path="push.mode"),
+               Sensor("push_left_s", "Live left", "s", path="push.left_s"))
+    controls = (Control("push", "Push", "text", discover=False),  # Lightsail go2rtc의 bv_request가 보낸다
+                Control("extend", "Extend live", "button"))
 
     def __init__(self, cfg, node):
         super().__init__(cfg, node)
@@ -70,6 +78,14 @@ class Video(Device):
         self._wanted = asyncio.Event()
         self._proc: asyncio.subprocess.Process | None = None
         self.capture_error = ""
+        self.pusher = Pusher(self, p.get("push") or {})
+
+    async def write_control(self, name: str, value: str) -> bool:
+        if name == "push":
+            return await self.pusher.command(value)
+        if name == "extend":
+            return self.pusher.extend()
+        return False
 
     # ---- 구독 (웹 등) ----
 
@@ -174,4 +190,5 @@ class Video(Device):
     def state(self) -> dict[str, Any]:
         return {"capturing": self._proc is not None, "viewers": self.viewers, "fps": self.measured_fps,
                 "width": self.width, "height": self.height, "device": self.device,
-                "frame_bytes": len(self.frame) if self.frame else 0, "error": self.capture_error}
+                "frame_bytes": len(self.frame) if self.frame else 0, "error": self.capture_error,
+                "push": self.pusher.state()}
