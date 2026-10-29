@@ -86,8 +86,10 @@ sudo chown rvnode:mosquitto /etc/mosquitto/conf.d/rv-bridge.conf && sudo chmod 6
 [ -f /etc/rvnode.yaml ] || { sudo install -m 600 $DEST/src/config.example.yaml /etc/rvnode.yaml; echo "edit /etc/rvnode.yaml"; }
 sudo chown rvnode:rvnode /etc/rvnode.yaml && sudo chmod 600 /etc/rvnode.yaml
 sudo systemctl daemon-reload
-sudo systemctl enable --now mosquitto >/dev/null 2>&1
-sudo systemctl restart mosquitto
+sudo systemctl enable mosquitto >/dev/null 2>&1
+# 브리지 파일이 망가져 있으면 실패한다 — rvnode가 뜨면서 다시 쓰고 재시작하므로 멈추지 않는다
+sudo systemctl reset-failed mosquitto 2>/dev/null || true
+sudo systemctl restart mosquitto || echo 'mosquitto failed — rvnode will rewrite the bridge file'
 sudo systemctl enable rvnode >/dev/null 2>&1
 sudo systemctl restart rvnode
 # 전원이 곧 끊겨도 방금 쓴 유닛·설정이 빈 파일로 남지 않게 (2026-10-29: 배포 직후 전원이 나가 0바이트가 됐다)

@@ -51,6 +51,10 @@ def test_bridge_conf():
     assert "notification_topic rv/broker/bridge" in text
     cfg.bridge.remote_prefix = "site573"
     assert 'topic rv/# out 0 "" site573/' in settings.bridge_conf(cfg.bridge, "9FCEE4")
+    cfg.bridge.remote_prefix = ""
+    cfg.bridge.out_topics = cfg.bridge.in_topics = " "
+    text = settings.bridge_conf(cfg.bridge, "9FCEE4")
+    assert "topic rv/# out 0" in text and "topic homeassistant/status in 0" in text
     cfg.bridge.enabled = False
     assert settings.bridge_conf(cfg.bridge, "9FCEE4").startswith("#")
 

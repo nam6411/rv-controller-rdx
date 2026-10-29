@@ -9,7 +9,7 @@ import os
 import signal
 import sys
 
-from . import config
+from . import config, settings
 from .node import Node
 
 DEFAULT_CONFIG = "/etc/rvnode.yaml"
@@ -41,5 +41,11 @@ def cli() -> None:
         print(f"rvnode: config {args.config}: {e}", file=sys.stderr)
         sys.exit(2)
     _setup_logging(args.log_level or cfg.log_level)
+    if settings.BRIDGE_CONF.parent.is_dir():  # 손으로 고친 설정·새 기본값이 브리지 파일에도 들어가게
+        try:
+            if settings.apply_bridge(cfg):
+                logging.getLogger("rvnode").warning("bridge config rewritten — mosquitto restarted")
+        except Exception:
+            logging.getLogger("rvnode").exception("bridge apply failed")
     only = set(filter(None, (args.only or "").split(","))) or None
     sys.exit(asyncio.run(_main(Node(cfg, only, cfg_path=args.config))))

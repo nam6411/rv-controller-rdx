@@ -14,7 +14,7 @@ from typing import Any
 
 import yaml
 
-from .config import BridgeConfig, Config, parse
+from .config import BRIDGE_IN, BRIDGE_OUT, BridgeConfig, Config, parse
 
 SECRETS = (("mqtt", "password"), ("bridge", "password"), ("web", "password"), ("fallback", "password"))
 BRIDGE_CONF = Path(os.environ.get("RVNODE_BRIDGE_CONF", "/etc/mosquitto/conf.d/rv-bridge.conf"))
@@ -85,12 +85,13 @@ def bridge_conf(b: BridgeConfig, device_id: str) -> str:
         f"notification_topic {rp}rv/broker/bridge",
     ]
 
-    def topics(csv: str, direction: str) -> None:
-        for t in filter(None, (x.strip() for x in csv.split(","))):
+    def topics(csv: str, default: str, direction: str) -> None:
+        # 비우면 기본값 — 토픽 없는 브리지는 mosquitto가 아예 뜨지 않는다 (웹 설정 칸을 비운 채 저장한 경우)
+        for t in filter(None, (x.strip() for x in (csv.strip() or default).split(","))):
             lines.append(f'topic {t} {direction} 0 "" {rp}' if rp else f"topic {t} {direction} 0")
 
-    topics(b.out_topics, "out")
-    topics(b.in_topics, "in")
+    topics(b.out_topics, BRIDGE_OUT, "out")
+    topics(b.in_topics, BRIDGE_IN, "in")
     return "\n".join(lines) + "\n"
 
 
