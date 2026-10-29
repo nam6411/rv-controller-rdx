@@ -57,7 +57,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
   <header>
     <div class="eyebrow">rv-controller · docs/18 §12.2 AVM 켜짐 · 2026-10-25 확정</div>
     <h1>AVM 켜짐 회로</h1>
-    <p>차 시동 12V는 옵토(U8)로 절연해 Radxa 핀 37로 읽는다. 버드뷰를 켤지는 rvnode가 정하고, 핀 35로 옵토(U7)를 켜면 U7이 J2의 AVM_12V(버드뷰 상시 전원)를 ACC_IN에 넘긴다. 견인차 GND(G13)는 U8 LED 쪽에만 닿는다. 부품은 모두 베이스보드 위에 더한다. 하네스는 단자박스(BC-ABB-S10PT) 안의 10P 단자대 TB1에서 5+5로 받아 J2·J3로 넘긴다.</p>
+    <p>차 시동 12V는 옵토(U8)로 절연해 Radxa 핀 37로 읽는다. 버드뷰를 켤지는 rvnode가 정하고, 핀 35로 옵토(U7)를 켜면 U7이 J2의 AVM_12V(버드뷰 상시 전원)를 ACC_IN에 넘긴다. AVM_12V는 판이 J1 +12V(F1 앞)에서 피복선 점퍼로 만들어 버드뷰 BATT로 내보낸다(2026-10-29) — 버드뷰 전원 BATT·ACC·GND가 모두 이 함체에서 나간다. 견인차 GND(G13)는 U8 LED 쪽에만 닿는다. 부품은 모두 베이스보드 위에 더한다. 하네스는 단자박스(BC-ABB-S10PT) 안의 10P 단자대 TB1에서 5+5로 받아 J2·J3로 넘긴다.</p>
   </header>
 
   <section class="sheet">
@@ -140,8 +140,8 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
       <!-- U7 출력 → 카라반 12V, ACC_IN -->
       <path class="w" d="M470 160H560V52"/>
       <circle cx="560" cy="45" r="7" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
-      <text x="576" y="40" font-weight="700" font-size="13">AVM_12V (J2-1 ← TB1-1)</text>
-      <text x="576" y="58" class="muted" font-size="12">버드뷰 상시 전원(BATT) — ACC선 아님</text>
+      <text x="576" y="40" font-weight="700" font-size="13">AVM_12V (J2-1 → TB1-1 → 버드뷰 BATT)</text>
+      <text x="576" y="58" class="muted" font-size="12">판 안에서 J1 +12V(F1 앞)와 피복선 점퍼로 이음</text>
       <path class="w" d="M470 220H953"/>
       <circle cx="880" cy="220" r="4" class="dot"/>
       <path class="w" d="M880 220V240M880 290V305"/>
@@ -155,7 +155,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
       <text x="1040" y="248" text-anchor="end" class="muted" font-size="11">켜짐 ≈ 11.8V</text>
     </svg>
     </div>
-    <p class="note">U8은 베이스보드 13핀 입력(U4~U6: 2.2kΩ + 역병렬 1N4148)과 같은 꼴이다. 시동이 켜지면 U8이 켜져 핀 37이 Low가 된다. U7의 PC817 출력이 "릴레이 접점" 노릇을 하고, ACC_IN 전류는 버드뷰 상시 전원에서만 나온다. J2-1이 버드뷰 ACC선에서 따여 있으면 ACC를 ACC로 켜는 꼴이 되므로 반드시 상시(BATT)선이어야 한다.</p>
+    <p class="note">U8은 베이스보드 13핀 입력(U4~U6: 2.2kΩ + 역병렬 1N4148)과 같은 꼴이다. 시동이 켜지면 U8이 켜져 핀 37이 Low가 된다. U7의 PC817 출력이 "릴레이 접점" 노릇을 하고, ACC_IN 전류는 버드뷰 상시 전원에서만 나온다. J2-1은 판 안에서 J1 +12V(F1 앞)와 이어진 상시 12V라 버드뷰 BATT선에서 따로 분기하지 않는다. 버드뷰 GND는 J1 GND 플러그에서 함께 뺀다.</p>
   </section>
 
   <section class="sheet">
@@ -173,7 +173,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
       <rect x="450" y="50" width="100" height="350" rx="4" fill="var(--sheet)" stroke="var(--wire)" stroke-width="2"/>
       <path class="iso" d="M440 225H560"/>
       <path class="w" d="M250 75H460"/>
-      <text x="240" y="79" text-anchor="end" font-size="12">버드뷰 상시 +12V (BATT) 분기</text>
+      <text x="240" y="79" text-anchor="end" font-size="12">→ 버드뷰 BATT (판에서 공급)</text>
       <circle cx="466" cy="75" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/><circle cx="534" cy="75" r="6" fill="var(--sheet)" stroke="var(--wire)" stroke-width="1.5"/>
       <text x="500" y="79" text-anchor="middle" class="mono" font-size="12" font-weight="700">1</text>
       <path class="w" d="M540 75H760"/>
@@ -313,6 +313,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
           <tr><td class="m">J2, J3</td><td>5.08 플러그형 단자 5P (4P에서 교체)</td><td>판 위 — J2 버드뷰 묶음, J3 견인차 묶음</td></tr>
           <tr><td class="m">TB1</td><td>BC-ABB-S10PT 내장 10P 계단형 단자대 (5+5)</td><td>단자박스 — 1~5 → J2, 6~10 → J3. 쇼트바 없음</td></tr>
           <tr><td class="m">—</td><td>피복선 약 25cm</td><td>#35 → R21, #37 → U8 C</td></tr>
+          <tr><td class="m">—</td><td>피복선 0.5mm² 이상 약 10cm</td><td>J1 +12V(D-X, F1 앞) → J2 AVM12V(D′-X) — 버드뷰 전원 점퍼 (2026-10-29)</td></tr>
           <tr><td class="m">F3</td><td>인라인 퓨즈 0.5A</td><td>차 시동 12V선 (하네스)</td></tr>
           <tr><td class="m">Q1, K1, R24, R25, D6</td><td>BC337, 12V 릴레이, 10kΩ, 47kΩ, 1N4148</td><td>B안만 (하네스)</td></tr>
         </tbody>
@@ -333,6 +334,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
         <tr><td class="m">D5</td><td class="m">I-W~I-Z</td><td>세로로 눕힘. U8 LED 역병렬</td></tr>
         <tr><td class="m">R23</td><td class="m">S-Z~O-Z</td><td>Z행 윗면(J3 플러그 앞). 차 12V는 J3 CAR(S-X) → R23 → Z행 → H열 → U8 A</td></tr>
         <tr><td class="m">피복선</td><td class="m">V-E → R-V · W-E → G-U</td><td>핀 35·37. 핀 37 바로 위 W-D가 3.3V라 땜납이 번지지 않게</td></tr>
+        <tr><td class="m">피복선 (2026-10-29)</td><td class="m">D-X → D′-X</td><td>J1 +12V(F1 앞) → J2 AVM12V. 두 단자 핀 패드에 바로, Y행을 따라 X행 패드에서 띄워 고정</td></tr>
       </tbody>
     </table>
     <p class="note">배치 그림은 베이스보드 페이지(네트 목록에서 "U7 → J2 ACC" 등)에 있다.</p>
@@ -346,7 +348,7 @@ ol{margin:0;padding-left:20px;display:grid;gap:8px;max-width:74ch}
     </div>
     <ol>
       <li>차 시동 12V의 귀환은 J3 G13을 같이 쓴다. G13을 카라반 GND와 잇지 않는다. 옵토가 둘 사이를 끊는 것이 이 회로의 목적이다.</li>
-      <li><b>J2-1(AVM_12V)이 버드뷰 상시(BATT)선인지 확인한다.</b> ACC선이면 옮긴다.</li>
+      <li><b>버드뷰 BATT·GND는 판에서 준다.</b> 버드뷰 BATT ← TB1-1(J2 AVM12V), GND ← J1 GND 플러그(트윈 페룰). 버드뷰 전류를 재서 Radxa(12V 약 0.5A)와 합쳐 배선 쪽 퓨즈 3A를 넘으면 5A로 올리고 J1 선을 굵힌다.</li>
       <li>보드가 오면 <code>gpioinfo</code>로 핀 35·37의 칩·라인 번호를 확인한다. 핀 37은 <code>bias=pull-up</code>으로 요청한다. 부팅하는 동안 핀 35가 High로 튀지 않는지 본다. 튀면 버드뷰가 부팅마다 잠깐 켜진다.</li>
           </ol>
   </section>

@@ -6,7 +6,8 @@
 배치의 원본은 그림 페이지 안의 `const D = {...}`(parts·pinnet·runs)다. 배치를 고치면 그림 페이지를 고치고
 사본을 docs/artifacts에 다시 받은 뒤 이 스크립트로 표를 다시 만든다.
 검사: 한 구멍에 한 핀·한 네트, 맨선이 다른 네트 구멍을 지나지 않음, 네트마다 핀이 모두 이어짐, 판 범위.
-점퍼(jumpers)는 피복선이라 지나가는 구멍을 차지하지 않고 두 끝만 잇는다.
+점퍼(jumpers)는 피복선이라 지나가는 구멍을 차지하지 않고 두 끝만 잇는다. `tie`가 있는 점퍼는 a 끝의 `tie` 네트와
+b 끝의 `net` 네트를 한 노드로 묶는다(J1 +12V → J2 AVM12V처럼 이름은 따로 두고 전기적으로 합친 곳).
 구멍 이름은 판 실크 그대로 열 글자-행 글자, 예: K-L. 행은 위에서부터 A~Z, 열은 오른쪽 끝부터 A~Z 다음
 두 번째 바퀴 A′~E′(실크는 A~E를 다시 찍었다). 좌표 (col,row)는 1부터, col 1이 윗면 왼쪽 끝.
 """
@@ -69,10 +70,10 @@ for run in D["runs"]:
     for h in cs[1:]:
         parent[find(h)] = find(cs[0])
 for j in D["jumpers"]:
-    for end in (j["a"], j["b"]):
+    for end, want in ((j["a"], j.get("tie", j["net"])), (j["b"], j["net"])):
         h = tuple(end)
-        if hole_net.get(h) != j["net"]:
-            errors.append(f'점퍼 {j["net"]}: {hn(*h)}가 같은 네트의 핀·맨선이 아니다')
+        if hole_net.get(h) != want:
+            errors.append(f'점퍼 {j["net"]}: {hn(*h)}가 {want} 네트의 핀·맨선이 아니다')
     parent[find(tuple(j["b"]))] = find(tuple(j["a"]))
 # 부품 안에서 이미 이어진 핀 — Radxa의 GND·5V 핀
 INTERNAL = [["J5.9", "J5.14", "J5.20", "J5.25", "J5.34"], ["J5.2", "J5.4"]]
