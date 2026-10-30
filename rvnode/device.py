@@ -205,6 +205,7 @@ class Device:
                     ok = await self.write_switch(name, on)
                     self.log.info("%s -> %s %s", name, "ON" if on else "OFF", "ok" if ok else "FAILED")
                     await self.publish_switch(name)
+                    await self.publish_state()  # 스위치에 딸린 값(예: 버드뷰 powered)도 바로 — 주기 발행을 기다리지 않게
                 else:
                     c = next((c for c in self.controls if c.name == name), None)
                     if c is None:
