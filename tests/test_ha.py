@@ -15,7 +15,7 @@ def test_sensor_payload_matches_esp(node):
     assert doc["avty"] == [{"t": "rv/mach/status"}, {"t": "rv/mach/tpms/availability"}]
     assert doc["avty_mode"] == "all"
     assert doc["dev"]["ids"] == ["9FCEE4"]
-    assert doc["dev"]["name"] == "TPMS"
+    assert doc["dev"]["name"] == node.cfg.node.label  # 장치(슬롯) 라벨이 아니라 노드 라벨
     assert "sug_dsp_prc" not in doc
 
 

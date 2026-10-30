@@ -52,7 +52,8 @@ class Node:
         )
         self.bus.on_connect = self._on_connect
         self.bus.on_message = self._on_message
-        self.info = ha.DeviceInfo(device_id=cfg.node.device_id, base=self.base, sw=__version__, mac=_wifi_mac())
+        self.info = ha.DeviceInfo(device_id=cfg.node.device_id, base=self.base, sw=__version__, mac=_wifi_mac(),
+                                   name=cfg.node.label)
         self.devices: list[Device] = []
         for d in cfg.devices:
             if not d.enabled or (only and d.slug not in only):

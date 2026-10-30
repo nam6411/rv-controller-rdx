@@ -33,7 +33,7 @@ fi
 # 매번: 브로커 탐색(mDNS 별칭)·폴백 AP에 쓰는 패키지와 권한. 패키지는 없을 때만 깐다
 ssh "$HOST" "sh -eu" <<'EOF'
 NEED=""
-for p in avahi-daemon avahi-utils iw dnsmasq-base ffmpeg; do dpkg -s $p >/dev/null 2>&1 || NEED="$NEED $p"; done
+for p in avahi-daemon avahi-utils iw dnsmasq-base ffmpeg chrony; do dpkg -s $p >/dev/null 2>&1 || NEED="$NEED $p"; done
 [ -z "$NEED" ] || { sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q install $NEED >/dev/null; echo "installed:$NEED"; }
 # 웹 설정이 브리지를 바꾸면 mosquitto만 다시 시작, 폴백 AP 중에는 iw로 공유기를 찾는다(NM은 AP 모드 장치의 스캔을 받지 않는다)
 echo 'rvnode ALL=(root) NOPASSWD: /usr/bin/systemctl restart mosquitto, /usr/sbin/iw dev wlan0 scan ap-force' > /tmp/91-rvnode
@@ -91,6 +91,11 @@ sudo systemctl enable mosquitto >/dev/null 2>&1
 sudo systemctl reset-failed mosquitto 2>/dev/null || true
 sudo systemctl restart mosquitto || echo 'mosquitto failed — rvnode will rewrite the bridge file'
 sudo systemctl enable rvnode >/dev/null 2>&1
+# GPS 시각 → chrony (rdx docs/24). 바뀌었을 때만 다시 시작
+if ! cmp -s $DEST/src/chrony/rvnode-gps.conf /etc/chrony/conf.d/rvnode-gps.conf; then
+  sudo install -m 644 $DEST/src/chrony/rvnode-gps.conf /etc/chrony/conf.d/rvnode-gps.conf
+  sudo systemctl restart chrony
+fi
 sudo systemctl restart rvnode
 # 전원이 곧 끊겨도 방금 쓴 유닛·설정이 빈 파일로 남지 않게 (2026-10-29: 배포 직후 전원이 나가 0바이트가 됐다)
 sync

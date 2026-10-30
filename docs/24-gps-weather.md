@@ -70,6 +70,12 @@ Radxa 쪽 데몬 `rvnode`(Python asyncio, docs/29 §4)의 `devices/gps.py`·`dev
 - `rsetup` 오버레이 **UART4-M1** → 장치 이름은 `dmesg | grep tty`로 확인(`/dev/ttyS4` 예상). 보레이트 **115200**(기본값, §7.1).
   하드웨어 UART라 ESP8266에서처럼 38400으로 낮출 필요가 없다.
 - `gpsd`가 포트를 쥐고, `chrony`는 gpsd의 SHM 시각을 참조 시계로 쓴다(PPS 선은 잇지 않았다 — NMEA 시각만, 수십 ms 정도면 충분).
+  - **2026-10-30 적용**: Debian `chrony` + `chrony/rvnode-gps.conf`(deploy.sh가 `/etc/chrony/conf.d/`에 넣는다).
+    `refclock SHM 2 refid GPS poll 3 precision 1e-1 delay 0.2` — gpsd가 `gpsd` 사용자로 돌아 root 전용 0·1번이 아니라
+    2번 슬롯(0666)을 쓴다. 인터넷 NTP pool은 그대로 두며, 망이 있으면 NTP가 뽑히고 없으면 GPS가 시계를 잡는다.
+    chrony를 깔면 systemd-timesyncd는 꺼진다. `makestep 1 3`(Debian 기본)이라 부팅 뒤 처음 세 번은 바로 맞춘다.
+  - 남은 것: **offset** 미측정(0으로 둠). 실내라 위성을 못 잡아(SNR 25 넘는 위성 0개) GPS 샘플이 아직 없다.
+    위치가 잡힌 상태에서 NTP와 나란히 `chronyc sourcestats`를 몇 분 보고 GPS 평균 오차를 `offset`에 넣는다.
   `rvnode`는 gpsd 소켓(2947)의 TPV·SKY 보고서를 받는다. NMEA를 직접 해석하지 않는다.
 - 발행 `rv/<radxa>/gps` (retain, 10초마다 + 50m 넘게 움직이면 바로):
 

@@ -17,6 +17,7 @@ class DeviceInfo:
     sw: str
     mac: str = ""
     model: str = "rvnode"
+    name: str = "RV node"  # HA 장치 이름 = 노드 라벨. 장치마다 다른 이름을 보내면 마지막에 올린 장치 이름으로 바뀐다
 
 
 def display_precision(s: Sensor) -> int | None:
@@ -37,7 +38,7 @@ def _dev_block(info: DeviceInfo, dev: Device) -> dict[str, Any]:
     d: dict[str, Any] = {"ids": [info.device_id]}
     if info.mac:
         d["cns"] = [["mac", info.mac]]
-    d.update({"name": dev.label, "mf": "nam6411", "mdl": info.model, "sw": info.sw})
+    d.update({"name": info.name, "mf": "nam6411", "mdl": info.model, "sw": info.sw})
     return d
 
 
