@@ -1,7 +1,7 @@
 """go2rtc exec 소스 (docs/30 §5.2) — 버드뷰를 보는 사람이 생기면 go2rtc가 실행하고, 모두 떠나면 SIGTERM으로 끝낸다.
 
 argv[1] = go2rtc가 내준 {output} (rtsp://127.0.0.1:8554/<무작위 경로>). 그 경로와 송출 계정을 MQTT로 차에 보내고
-10초마다 keepalive. Radxa rvnode가 같은 경로로 송출해 오면 go2rtc가 그 스트림을 보는 사람에게 넘긴다.
+10초마다 같은 start를 다시 보낸다(keepalive를 겸한다). Radxa rvnode가 같은 경로로 송출해 오면 go2rtc가 그 스트림을 보는 사람에게 넘긴다.
 go2rtc 이미지(Alpine)에 mosquitto_pub가 없어 MQTT 3.1.1 CONNECT/PUBLISH만 직접 쓴다 (QoS 0, 표준 라이브러리만).
 
 환경: MQTT_HOST(기본 127.0.0.1) MQTT_PORT MQTT_USER MQTT_PASS RTSP_USER RTSP_PASS BV_TOPIC
@@ -71,12 +71,15 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    mqtt.publish(TOPIC, {"cmd": "start", "id": sid, "path": path,
-                         "user": os.environ.get("RTSP_USER", ""), "pass": os.environ.get("RTSP_PASS", "")})
+    start = {"cmd": "start", "id": sid, "path": path,
+             "user": os.environ.get("RTSP_USER", ""), "pass": os.environ.get("RTSP_PASS", "")}
+    mqtt.publish(TOPIC, start)
     print(f"bv_request: start {sid} path={path}", file=sys.stderr, flush=True)
     while True:
         time.sleep(KEEPALIVE_S)
-        mqtt.publish(TOPIC, {"cmd": "keepalive", "id": sid})
+        # keepalive 대신 start를 다시 보낸다 — rvnode는 같은 id면 keepalive로 받고, 처음 것을 놓쳤으면
+        # (재시작·MQTT 끊김) 여기서 송출을 시작한다
+        mqtt.publish(TOPIC, start)
 
 
 if __name__ == "__main__":
