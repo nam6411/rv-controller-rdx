@@ -59,7 +59,9 @@ class Video(Device):
     sensors = (Sensor("push_mode", "Remote view", path="push.mode"),
                Sensor("push_left_s", "Live left", "s", path="push.left_s"))
     controls = (Control("push", "Push", "text", discover=False),  # Lightsail go2rtc의 bv_request가 보낸다
-                Control("extend", "Extend live", "button"))
+                Control("extend", "Extend live", "button"),
+                # 보려고 할 때 버드뷰를 켠다 — 이미 이어지는 송출에 붙으면 새 start가 없어서 (카드의 재생 버튼이 누른다)
+                Control("wake", "Power on for viewing", "button"))
 
     def __init__(self, cfg, node):
         super().__init__(cfg, node)
@@ -80,21 +82,33 @@ class Video(Device):
         self.capture_error = ""
         self.pusher = Pusher(self, p.get("push") or {})
 
-    async def turn_on_birdview(self) -> None:
-        """원격 송출이 시작되면 버드뷰가 꺼져 있을 때만 전원 스위치를 켠다 — 사용자가 전원 버튼을 한 번 누른 것과 같다.
-        이미 켜져 있으면(시동·스위치) 그대로 두고, 송출이 끝나도 끄지 않는다."""
-        for d in self.node.devices:
-            if d.type == "birdview" and d.online and not d.state().get("powered"):
-                self.log.info("bird view off — switching it on for the remote view")
-                await d.write_switch("power", True)
-                await d.publish_switch("power")
-                await d.publish_state()
+    def _birdview(self):
+        return next((d for d in self.node.devices if d.type == "birdview" and d.online), None)
+
+    async def turn_on_birdview(self) -> bool:
+        """원격 송출이 시작되면 버드뷰가 꺼져 있을 때만 전원 스위치를 켠다 — 전원 버튼을 누른 것과 같다. 켰으면 True."""
+        bv = self._birdview()
+        if not bv or bv.state().get("powered"):
+            return False
+        self.log.info("bird view off — switching it on for the remote view")
+        await bv.set_power_by("video", True)
+        return True
+
+    async def restore_birdview(self) -> None:
+        """송출 전 상태(꺼짐)로 되돌린다. 그사이 사용자가 스위치를 만졌으면 그대로 둔다."""
+        bv = self._birdview()
+        if bv and bv.logic.manual and bv.manual_by == "video":
+            self.log.info("remote view ended — switching the bird view back off")
+            await bv.set_power_by("video", False)
 
     async def write_control(self, name: str, value: str) -> bool:
         if name == "push":
             return await self.pusher.command(value)
         if name == "extend":
             return self.pusher.extend()
+        if name == "wake":
+            await self.pusher.wake()
+            return True
         return False
 
     # ---- 구독 (웹 등) ----

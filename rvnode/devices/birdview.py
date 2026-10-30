@@ -103,8 +103,18 @@ class Birdview(Device):
         self.inputs = {n: False for n in INPUTS}
         self.out = {n: False for n in OUTPUTS}
         self.view = "none"
+        self.manual_by: str | None = None  # 전원 스위치를 마지막으로 바꾼 쪽 — "user"(HA·웹) 또는 "video"(원격 영상)
 
     # ---- 다른 모듈이 부른다 (예: 원격 영상 video 모듈) ----
+
+    async def set_power_by(self, source: str, on: bool) -> None:
+        """사용자 스위치와 같은 전원 스위치를 다른 모듈이 바꾼다. 누가 바꿨는지 남겨, 되돌릴 때 사용자가 바꾼 것은 건드리지 않는다."""
+        self.logic.manual = on
+        self.manual_by = source
+        if self.lines is not None:
+            self.step()
+        await self.publish_switch("power")
+        await self.publish_state()
 
     def request_power(self, source: str, on: bool) -> None:
         if on:
@@ -195,6 +205,7 @@ class Birdview(Device):
         if name != "power":
             return False
         self.logic.manual = on
+        self.manual_by = "user"
         if self.lines is not None:
             self.step()
         return True

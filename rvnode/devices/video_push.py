@@ -87,6 +87,9 @@ class Pusher:
         self.keepalive_s = float(params.get("keepalive_s", 30))
         self.live_s = float(params.get("live_s", 60))
         self.pause_fps = float(params.get("pause_fps", 1))
+        self.restore_s = float(params.get("restore_s", 15))  # 끝난 뒤 버드뷰를 되돌리기까지 — 곧 다시 열면 껐다 켜지 않게
+        self._turned_on = False  # 송출 때문에 버드뷰를 켰다 (끝나면 되돌린다)
+        self._restore_task: asyncio.Task | None = None
         self.session: Session | None = None
         self.task: asyncio.Task | None = None
         self.error = ""
@@ -162,7 +165,11 @@ class Pusher:
             *ffmpeg_cmd(s.url, self.fps, self.kbps, self.encoder),
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
         self.error = ""
-        await self.video.turn_on_birdview()  # 꺼져 있으면 전원 버튼을 한 번 누른 것처럼 켠다 (끄는 건 사용자)
+        if self._restore_task:  # 끝난 지 얼마 안 돼 다시 열었다 — 켜 둔 채로 이어 간다
+            self._restore_task.cancel()
+            self._restore_task = None
+        if await self.video.turn_on_birdview():  # 꺼져 있으면 켜고, 끝나면 되돌린다
+            self._turned_on = True
         await self.video.publish_state()
         try:
             while not self._expired(s):
@@ -179,6 +186,8 @@ class Pusher:
         finally:
             if self.session is s:
                 self.session = None
+                if self._turned_on:
+                    self._restore_task = asyncio.create_task(self._restore_later())
             if proc.returncode is None:
                 try:
                     proc.stdin.close()
@@ -187,6 +196,21 @@ class Pusher:
                     proc.kill()
             self.log.info("push end id=%s (%s)", s.id, "stop" if s.stop.is_set() else "keepalive timeout" if not self.error else "error")
             await self.video.publish_state()
+
+    async def wake(self) -> None:
+        """보려는 사람이 있다 — 꺼져 있으면 켜고, 송출 시작 때 켠 것과 같이 끝나면 되돌린다."""
+        if await self.video.turn_on_birdview():
+            self._turned_on = True
+        if self._turned_on and not self.session and not self._restore_task:
+            # 송출이 끝내 시작되지 않으면(카메라를 못 열었다 등) 그래도 되돌린다
+            self._restore_task = asyncio.create_task(self._restore_later(max(self.restore_s, 60)))
+
+    async def _restore_later(self, delay: float | None = None) -> None:
+        await asyncio.sleep(self.restore_s if delay is None else delay)
+        if self.session is None:
+            self._turned_on = False
+            self._restore_task = None
+            await self.video.restore_birdview()
 
     async def _feed(self, proc, jpg: bytes | None) -> None:
         if not jpg:

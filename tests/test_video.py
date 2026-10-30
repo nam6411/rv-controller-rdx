@@ -93,13 +93,14 @@ def test_push_session_commands(monkeypatch):
     asyncio.run(go())
 
 
-def test_push_session_switches_birdview_on(monkeypatch):
+def test_push_session_powers_birdview_and_restores(monkeypatch):
     from .test_birdview import PINS
 
     async def go():
         cfg = parse({"node": {"device_id": "9FCEE4", "base": "rv/radxa"},
                      "devices": [{"type": "birdview", "slug": "birdview", "params": {"backend": "fake", "pins": PINS}},
-                                 {"type": "video", "slug": "video", "params": {"device": "/nonexistent"}}]})
+                                 {"type": "video", "slug": "video",
+                                  "params": {"device": "/nonexistent", "push": {"restore_s": 0.05}}}]})
         node = Node(cfg)
         node.bus = FakeBus()
         bvd, d = node.devices
@@ -120,17 +121,48 @@ def test_push_session_switches_birdview_on(monkeypatch):
 
         monkeypatch.setattr(vp.asyncio, "create_subprocess_exec", fake_exec)
         monkeypatch.setattr(vp.Pusher, "_live", idle)
-        assert await d.write_control("push", '{"cmd":"start","id":"a","path":"p"}')
-        await asyncio.sleep(0.01)
-        assert bvd.logic.manual is True and bvd.state()["powered"]   # 꺼져 있었으니 전원 버튼을 누른 것처럼
-        assert await d.write_control("push", '{"cmd":"stop","id":"a"}')
-        assert bvd.logic.manual is True                               # 송출이 끝나도 켜 둔다
 
-        bvd.logic.manual = False                                      # 시동으로 켜져 있으면 스위치는 그대로
-        bvd.logic.update(0, True, False, False, False)
-        bvd.step = lambda: None
-        bvd.out["power"] = True
-        await d.turn_on_birdview()
-        assert bvd.logic.manual is False
+        async def session(sid, wait=0.2):
+            assert await d.write_control("push", f'{{"cmd":"start","id":"{sid}","path":"p"}}')
+            await asyncio.sleep(0.01)
+            on = bvd.state()["powered"]
+            assert await d.write_control("push", f'{{"cmd":"stop","id":"{sid}"}}')
+            await asyncio.sleep(wait)
+            return on
+
+        # 꺼져 있었다 → 송출 동안 켜짐 → 끝나고 꺼짐
+        assert await session("a") is True
+        assert bvd.state()["powered"] is False and bvd.logic.manual is False
+
+        # 끝나고 곧 다시 열면 끄지 않고 이어 간다
+        assert await session("b", wait=0.01) is True
+        assert bvd.state()["powered"] is True
+        assert await session("c") is True
+        assert bvd.state()["powered"] is False
+
+        # 켜져 있었다 → 그대로
+        await bvd.write_switch("power", True)
+        assert await session("d") is True
+        assert bvd.state()["powered"] is True and bvd.manual_by == "user"
+        await bvd.write_switch("power", False)
+
+        # 이어지는 송출 중에 꺼졌다 → 재생(wake)으로 다시 켜고, 끝나면 되돌린다
+        assert await d.write_control("push", '{"cmd":"start","id":"w","path":"p"}')
+        await asyncio.sleep(0.01)
+        await bvd.set_power_by("video", False)
+        assert bvd.state()["powered"] is False
+        assert await d.write_control("wake", "PRESS")
+        assert bvd.state()["powered"] is True
+        assert await d.write_control("push", '{"cmd":"stop","id":"w"}')
+        await asyncio.sleep(0.2)
+        assert bvd.state()["powered"] is False
+
+        # 송출 중에 사용자가 스위치를 만졌으면 끝나도 되돌리지 않는다
+        assert await d.write_control("push", '{"cmd":"start","id":"e","path":"p"}')
+        await asyncio.sleep(0.01)
+        await bvd.write_switch("power", True)
+        assert await d.write_control("push", '{"cmd":"stop","id":"e"}')
+        await asyncio.sleep(0.2)
+        assert bvd.state()["powered"] is True
 
     asyncio.run(go())
