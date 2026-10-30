@@ -273,7 +273,8 @@ cards:
 ### 7.2 보안
 - 영상은 RTSP 평문으로 인터넷을 지난다. 계정·경로가 세션마다 바뀌어 남이 끼어들기는 어렵지만 엿볼 수는 있다.
   필요하면 RTSPS(go2rtc TLS) 또는 Radxa→Lightsail SSH 포워딩으로 바꾼다 — 1차에서는 평문 + 계정.
-- MQTT `start`의 `url`은 허용 호스트만 받는다(§4.3). 브리지 외부 브로커 계정이 털리면 송출을 켤 수는 있지만 다른 곳으로 보낼 수는 없다.
+- MQTT `start`에는 경로·계정만 실린다. 송출 호스트는 Radxa 설정 `push.url`로 고정이다(§4.3, 2026-10-30). 브리지 외부 브로커 계정이 털리면
+  송출을 켤 수는 있지만 다른 곳으로 보낼 수는 없다. ls 브로커에는 ACL이 없어 어느 계정이든 명령 토픽에 쓸 수 있다.
 - Radxa go2rtc의 웹 UI(`:1984`)는 차 안 LAN에만 있다. 공유기에 포트 포워딩을 두지 않는다.
 
 ### 7.3 차 안에서
@@ -306,6 +307,44 @@ cards:
 6. **HA**: generic camera, 버튼 → 하위 화면에서 라이브. 첫 화면만 열어 두었을 때 송출이 켜지지 않는지, 하위 화면에서 나오면 끝나는지
 7. **라이브 상한·이어보기**: 1분에 정지 화면으로 바뀌는지(HA 쪽 스트림이 끊기지 않는지), 이어보기로 바로 라이브가 돌아오는지,
    일시정지 동안 캡처 장치가 닫히는지(`fuser`), 정지 화면 대역, LTE를 끊었다 붙였을 때 ffmpeg가 남지 않는지
+
+## 10. 작업 기록 (2026-10-30, 원격 보기 1차 구현)
+
+이 문서의 계획과 실제 구현이 갈린 이유를 시간순으로 남긴다.
+
+1. **HA에서 영상이 안 보이는 이유.** HA는 ls(클라우드)에 있어 차 안 Radxa 주소(`192.168.1.150`)로 들어갈 수 없다.
+   센서는 Radxa가 MQTT로 밀어 올리니 되지만, 영상은 HA가 가지러 가야 해서 안 된다. 그래서 §2처럼 Radxa가 ls로
+   밀어 넣는 방식(계획 2번)으로 갔다.
+2. **MQTT가 밤새 끊겨 있었다(별건, 같이 고침).** 웹 설정에서 브리지 토픽 칸이 빈 채로 저장돼 mosquitto가
+   "no topics"로 뜨지 않았다(10-29 23:05부터). 빈 칸이면 기본 토픽을 쓰고, 부팅 때 브리지 파일을 다시 쓰게 했다.
+   `deploy.sh`도 mosquitto 시작 실패에서 멈추지 않게 했다(`cc2c330`).
+3. **8554가 Lightsail 방화벽에 막혀 있었다.** 처음에는 열지 않고 Cloudflare 터널로 갔다.
+   - 터널 `ha-lightsail`에 TCP 규칙 `caravan-rtsp.nam6411.com → localhost:8554`와 DNS를 더했다.
+     Radxa는 `cloudflared access tcp`로 붙을 계획이었다.
+   - 그런데 **go2rtc는 127.0.0.1에서 온 접속에는 RTSP 계정을 묻지 않는다.** 터널로 들어오는 접속은 모두
+     127.0.0.1로 보이므로, cloudflared만 있으면 누구나 송출을 켤 수 있었다(계정 없는 DESCRIBE로 exec가 실행됨을 확인).
+   - Access 앱과 서비스 토큰(`caravan-radxa-rtsp`)으로 막았다. 토큰 없이 접속하면 `bad handshake`로 끊기는 것을 확인했다.
+   - Radxa에 cloudflared를 까는 일이 남았는데, 사용자 판단으로 터널을 그만두고 **8554를 직접 열었다**.
+     직접 접속에는 go2rtc가 Basic 인증을 요구한다(`401` 확인). 평문이지만 MQTT 1883과 같은 수준이라 1차로는 받아들였다(§7.2).
+   - 정리: 터널 규칙과 DNS는 사용자가 지웠다. Access 앱, 서비스 토큰, Radxa의 토큰 파일과 터널 서비스는 지웠다.
+     `rv-rtsp-tunnel.service`는 저장소에서 뺐다(`1cb0d8e`).
+4. **ls go2rtc** (`ls/go2rtc/setup.sh`)
+   - 컨테이너 `alexxit/go2rtc:1.9.9`, host 네트워크, api는 127.0.0.1:1984, WebRTC 끔.
+   - mosquitto에 계정 `go2rtc`를 더했다. setup이 비밀번호 파일 소유자를 mosquitto로 두어서, mosquitto가
+     "owner is not root" 경고를 낸다. 원래 그 상태였고 지금은 동작에 문제가 없다.
+   - `exec:` 소스가 송출을 기다리는 시간은 30초다(로그 `exec: timeout`). 실제 첫 화면은 1.9초라 충분하다.
+5. **Radxa**
+   - Debian ffmpeg에는 Rockchip 하드웨어 인코더가 없어 libx264를 쓴다.
+     testsrc2 기준 720p15 인코딩에 CPU 약 0.53코어, MJPEG 디코드를 포함해 약 0.57코어.
+   - `start` 명령에는 비밀번호가 실리므로 숨은 control(`discover=False`)로 두고 로그에 내용을 남기지 않는다.
+6. **HA**
+   - generic camera를 config flow로 만들었다(`rtsp://172.17.0.1:8554/birdview`, Basic, TCP, 정지 화면 주소 없음).
+     엔티티는 `camera.birdview`로 바꿨고, `preload_stream`은 꺼져 있다.
+   - 대시보드는 생활 화면에 버튼만 두고 하위 화면 `/caravan/birdview`를 따로 만들었다(rv-controller `b80eb02`).
+7. **남은 것**
+   - 버드뷰 영상선을 연결한 뒤 실제 화면으로 화질과 대역을 확인한다(지금은 검은 화면).
+   - 폰 HA 앱에서 첫 화면까지 걸리는 시간을 잰다.
+   - LTE에서 확인한다(§9 7번).
 
 ## 출처
 - go2rtc: https://github.com/AlexxIT/go2rtc (v4l2 소스, `exec` 소스·`{output}`·`killsignal`, RTSP 서버, `stream.html`)
