@@ -2,7 +2,8 @@
 
 HA 버튼(왼쪽·오른쪽·누르기·길게 누르기)을 누르면 리모컨과 같은 패킷을 보낸다. seq는 리모컨처럼 송신마다 아래 4비트가 준다.
 누르기류는 같은 패킷을 22ms 간격으로 두 번 보낸다(리모컨 실측).
-배선은 rvnode.cc1101 (SPI3 + CSN 핀 15, GDO 없음). 수신 처리는 하지 않는다 — 칩은 송신 뒤 수신 상태로 둔다(MCSM1).
+배선은 rvnode.cc1101 (SPI3 + CSN 핀 15, GDO 없음). 수신은 쓰지 않아 칩은 IDLE로 둔다 — 수신 상태로 두면 잡음 패킷이
+FIFO에 쌓여 넘침(RXFIFO_OVERFLOW)으로 멈춘다(2026-10-30, 30초마다 '응답 없음'으로 보였다).
 
 params:
   spi        /dev/spidev3.0
@@ -18,7 +19,7 @@ import asyncio
 import time
 from typing import Any
 
-from ..cc1101 import ST_IDLE, ST_RX, Cc1101, Cc1101Error, Config
+from ..cc1101 import SIDLE, VERSION, Cc1101, Cc1101Error, Config
 from ..device import Control, Device, Sensor
 from ..frames import birdview_rf as bv
 
@@ -64,6 +65,7 @@ class BvRemote(Device):
         except Exception:
             r.close()
             raise
+        r.strobe(SIDLE)
         return r
 
     def _close(self) -> None:
@@ -82,11 +84,15 @@ class BvRemote(Device):
             if i:
                 time.sleep(PRESS_GAP_S)
             ok &= r.send(bv.payload(self.seq, action, self.ident))
+        r.strobe(SIDLE)  # send()는 MCSM1대로 수신으로 돌아간다 — 다시 쉰다
         return ok
 
     def _healthy(self) -> bool:
         r = self.radio
-        return bool(r) and r.status(0x31) == self.version and r.marc_state() in (ST_RX, ST_IDLE)
+        if not r or r.status(VERSION) != self.version:
+            return False
+        r.strobe(SIDLE)  # 혹시 다른 상태에 있으면 쉬게
+        return True
 
     async def run(self) -> None:
         while True:

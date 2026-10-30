@@ -91,3 +91,38 @@ def test_push_session_commands(monkeypatch):
         assert not await d.write_control("extend", "PRESS")
 
     asyncio.run(go())
+
+
+def test_push_session_requests_birdview_power(monkeypatch):
+    from .test_birdview import PINS
+
+    async def go():
+        cfg = parse({"node": {"device_id": "9FCEE4", "base": "rv/radxa"},
+                     "devices": [{"type": "birdview", "slug": "birdview", "params": {"backend": "fake", "pins": PINS}},
+                                 {"type": "video", "slug": "video", "params": {"device": "/nonexistent"}}]})
+        node = Node(cfg)
+        node.bus = FakeBus()
+        bvd, d = node.devices
+
+        class Proc:
+            returncode = None
+            stdin = stderr = None
+            async def wait(self): return 0
+            def kill(self): pass
+
+        async def fake_exec(*a, **kw):
+            return Proc()
+
+        async def idle(self, s, proc):
+            await s.stop.wait()
+
+        monkeypatch.setattr(vp.asyncio, "create_subprocess_exec", fake_exec)
+        monkeypatch.setattr(vp.Pusher, "_live", idle)
+        assert await d.write_control("push", '{"cmd":"start","id":"a","path":"p"}')
+        await asyncio.sleep(0.01)
+        assert bvd.logic.requests == {"video": True}           # 송출 중 → 버드뷰 전원 요청
+        assert bvd.logic.manual is False                        # 계속 켜기 스위치는 건드리지 않는다
+        assert await d.write_control("push", '{"cmd":"stop","id":"a"}')
+        assert bvd.logic.requests == {}
+
+    asyncio.run(go())

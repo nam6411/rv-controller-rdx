@@ -137,6 +137,8 @@ rtsp:
 >   숨은 명령(HA에 안 올림)이라 로그에 내용을 남기지 않는다.
 > - 프레임은 로컬 go2rtc 대신 rvnode `Video.frames()`(§4.2 바뀜). 인코더는 Debian ffmpeg의 **libx264**
 >   (rkmpp 빌드 없음): 720p 10fps 1.5 Mbps에서 CPU 약 0.55코어. fps는 캡처와 같은 10.
+> - **송출 중에는 버드뷰 전원을 켠다**(2026-10-30): 세션이 시작되면 birdview 장치에 `request_power("video", True)`,
+>   끝나면 거둔다. 시동·계속 켜기와 OR이라 「계속 켜기」 스위치는 바뀌지 않고, 송출이 끝나면 (시동이 꺼져 있으면) 꺼진다.
 > - HA 엔티티: `binary_sensor` 송출 중(`push.streaming`), `sensor` 모드(`live`/`paused`/`off`)·라이브 남은 초,
 >   `button` 이어보기(`control/extend/set` PRESS).
 > - 실제 확인(2026-10-30): ls go2rtc에서 열면 첫 화면까지 **1.9초**, HA `camera.birdview` 스냅샷 7초. 나가면 송출 끝.

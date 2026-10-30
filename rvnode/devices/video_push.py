@@ -162,6 +162,7 @@ class Pusher:
             *ffmpeg_cmd(s.url, self.fps, self.kbps, self.encoder),
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
         self.error = ""
+        self.video.request_birdview_power(True)  # 보는 동안 버드뷰를 켠다 (시동이 꺼져 있어도)
         await self.video.publish_state()
         try:
             while not self._expired(s):
@@ -176,14 +177,16 @@ class Pusher:
             self.error = err
             self.log.warning("push: %s", err)
         finally:
+            # 전원 요청부터 거둔다 — ffmpeg 정리가 실패해도 버드뷰가 켜진 채 남지 않게
+            if self.session is s:
+                self.session = None
+                self.video.request_birdview_power(False)  # 새 세션이 이어받았으면 요청을 그대로 둔다
             if proc.returncode is None:
                 try:
                     proc.stdin.close()
                     await asyncio.wait_for(proc.wait(), 3)
-                except (asyncio.TimeoutError, OSError, ConnectionError):
+                except (asyncio.TimeoutError, OSError, ConnectionError, AttributeError):
                     proc.kill()
-            if self.session is s:
-                self.session = None
             self.log.info("push end id=%s (%s)", s.id, "stop" if s.stop.is_set() else "keepalive timeout" if not self.error else "error")
             await self.video.publish_state()
 

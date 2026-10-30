@@ -18,6 +18,9 @@ class FakeRadio:
         self.sent.append(data)
         return True
 
+    def strobe(self, cmd):
+        self.strobes = getattr(self, "strobes", []) + [cmd]
+
 
 def make():
     node = Node(parse({"node": {"device_id": "9FCEE4", "base": "rv/radxa"},
@@ -40,6 +43,7 @@ def test_buttons_send_remote_packets():
     assert len(sent) == 3                                   # 왼쪽 1번 + 누르기 2번
     assert bv.decode(sent[0]) == (0x1E, bv.LEFT)
     assert bv.decode(sent[1]) == bv.decode(sent[2]) == (0x1D, bv.CLICK)   # seq는 송신(버튼)마다 하나씩 준다
+    assert d.radio.strobes[-1] == 0x36                      # 보낸 뒤 IDLE (수신 FIFO가 넘치지 않게)
     st = d.state()
     assert st["sent"] == 2 and st["last"]["action"] == "click" and st["last"]["ok"] and st["id"] == "A48A5E05"
 
