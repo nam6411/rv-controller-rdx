@@ -93,7 +93,7 @@ def test_push_session_commands(monkeypatch):
     asyncio.run(go())
 
 
-def test_push_session_requests_birdview_power(monkeypatch):
+def test_push_session_switches_birdview_on(monkeypatch):
     from .test_birdview import PINS
 
     async def go():
@@ -103,6 +103,8 @@ def test_push_session_requests_birdview_power(monkeypatch):
         node = Node(cfg)
         node.bus = FakeBus()
         bvd, d = node.devices
+        bvd.open()
+        bvd.online = True
 
         class Proc:
             returncode = None
@@ -120,9 +122,15 @@ def test_push_session_requests_birdview_power(monkeypatch):
         monkeypatch.setattr(vp.Pusher, "_live", idle)
         assert await d.write_control("push", '{"cmd":"start","id":"a","path":"p"}')
         await asyncio.sleep(0.01)
-        assert bvd.logic.requests == {"video": True}           # 송출 중 → 버드뷰 전원 요청
-        assert bvd.logic.manual is False                        # 계속 켜기 스위치는 건드리지 않는다
+        assert bvd.logic.manual is True and bvd.state()["powered"]   # 꺼져 있었으니 전원 버튼을 누른 것처럼
         assert await d.write_control("push", '{"cmd":"stop","id":"a"}')
-        assert bvd.logic.requests == {}
+        assert bvd.logic.manual is True                               # 송출이 끝나도 켜 둔다
+
+        bvd.logic.manual = False                                      # 시동으로 켜져 있으면 스위치는 그대로
+        bvd.logic.update(0, True, False, False, False)
+        bvd.step = lambda: None
+        bvd.out["power"] = True
+        await d.turn_on_birdview()
+        assert bvd.logic.manual is False
 
     asyncio.run(go())

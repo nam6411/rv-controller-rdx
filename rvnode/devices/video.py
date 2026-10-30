@@ -80,11 +80,15 @@ class Video(Device):
         self.capture_error = ""
         self.pusher = Pusher(self, p.get("push") or {})
 
-    def request_birdview_power(self, on: bool) -> None:
-        """원격 송출 동안 버드뷰 전원을 요청한다 (birdview 장치가 있으면). 시동·계속 켜기와 OR — 끝나면 요청만 거둔다."""
+    async def turn_on_birdview(self) -> None:
+        """원격 송출이 시작되면 버드뷰가 꺼져 있을 때만 전원 스위치를 켠다 — 사용자가 전원 버튼을 한 번 누른 것과 같다.
+        이미 켜져 있으면(시동·스위치) 그대로 두고, 송출이 끝나도 끄지 않는다."""
         for d in self.node.devices:
-            if d.type == "birdview" and hasattr(d, "request_power"):
-                d.request_power("video", on)
+            if d.type == "birdview" and d.online and not d.state().get("powered"):
+                self.log.info("bird view off — switching it on for the remote view")
+                await d.write_switch("power", True)
+                await d.publish_switch("power")
+                await d.publish_state()
 
     async def write_control(self, name: str, value: str) -> bool:
         if name == "push":
