@@ -140,6 +140,15 @@ devices:
         - { mac: "81:ea:ca:23:b9:f4", name: caravan_left, label: Caravan Left Tyre, unit: bar }
         - { mac: "82:ea:ca:33:6c:e7", name: caravan_right, label: Caravan Right Tyre, unit: bar }
 
+  # 버드뷰 노브 리모컨 흉내 (CC1101 433.92MHz, SPI3 + CSN 핀 15) — HA 버튼으로 왼쪽·오른쪽·누르기 (rv-controller docs/25 §10)
+  - type: bvremote
+    slug: bvremote
+    label: Bird view remote
+    params:
+      spi: /dev/spidev3.0
+      csn: { chip: gpiochip3, line: 8 }
+      tx_dbm: 10
+
   # UVC 캡처 (버드뷰 영상) — 웹에서 '보기'를 누르는 동안만 장치를 연다. MJPEG를 다시 인코딩하지 않는다 (docs/30)
   - type: video
     slug: video

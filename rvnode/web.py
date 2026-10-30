@@ -510,6 +510,12 @@ function sensorCard(d){
   if(d.type==="video"){
     return `${head(d)} <span class="pill ${s.capturing?"on":"off"}">${s.capturing?"캡처 중":"대기"}</span> <span class="hint">${esc(s.device||"")} · ${s.width||"?"}×${s.height||"?"} · ${f(s.fps,1)} fps · 보는 사람 ${s.viewers??0}${s.frame_bytes?" · 프레임 "+Math.round(s.frame_bytes/1024)+" KB":""}${s.error?" · "+esc(s.error):""}</span></div>`;
   }
+  if(d.type==="bvremote"){
+    const l=s.last||{},ok=d.online&&s.ready;
+    const b=(n,t)=>`<button class="sec" ${ok?"":"disabled"} onclick="cmd('${d.slug}','control','${n}')">${t}</button>`;
+    return `${head(d)} <span class="hint">CC1101 ${s.version?"0x"+s.version.toString(16).toUpperCase():"–"} · 리모컨 ${esc(s.id||"")} · 보낸 ${f(s.sent,0)}번${l.action?` · 마지막 ${esc(l.action)} (seq ${(l.seq??0).toString(16).toUpperCase()}${l.ok?"":", 실패"}) ${esc((l.at||"").slice(11))}`:""}${d.last_error?" · "+esc(d.last_error):""}</span>
+    <div class="btns">${b("left","◀ 왼쪽")}${b("click","누르기")}${b("right","오른쪽 ▶")}${b("long_press","길게 누르기")}</div></div>`;
+  }
   if(d.type==="tpms"){
     const names=Object.keys(s).filter(k=>s[k]&&typeof s[k]==="object"&&"mac" in s[k]&&!Array.isArray(s[k]));
     const tyre=k=>{const t=s[k];const ago=t.age_s===undefined?"수신 없음":t.age_s<60?`${t.age_s}초 전`:`${Math.floor(t.age_s/60)}분 전`;

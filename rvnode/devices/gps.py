@@ -24,7 +24,9 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import os
 import time
+from pathlib import Path
 from typing import Any
 
 from ..device import BinarySensor, Control, Device, Sensor
@@ -191,6 +193,12 @@ class Gps(Device):
         self._geo_pos: tuple[float, float] | None = None
         self._geo_at = -1e9
         self._geo_task: asyncio.Task | None = None
+        self.address_at: str | None = None
+        # 마지막 주소를 재시작 뒤에도 쓴다 — 위성을 다시 잡기 전(지붕 밑·부팅 직후)에도 HA·웹에 주소가 남게
+        sd = p.get("state_file") or (os.path.join(os.environ["STATE_DIRECTORY"], f"{self.slug}.json")
+                                     if os.environ.get("STATE_DIRECTORY") else "")
+        self.state_file = Path(sd) if sd else None
+        self._load_last()
 
     # ---- 발행 판단 ----
 
@@ -255,9 +263,36 @@ class Gps(Device):
             return
         self.address, self.address_full = short_address(doc), doc.get("display_name")
         self._geo_pos = (lat, lon)
+        self.address_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
         self.log.info("address: %s", self.address)
+        self._save_last()
         await self.publish_state()
         await self.publish_location()
+
+    def _load_last(self) -> None:
+        if not self.state_file:
+            return
+        try:
+            d = json.loads(self.state_file.read_text(encoding="utf-8"))
+            self.address, self.address_full, self.address_at = d.get("address"), d.get("address_full"), d.get("at")
+            if d.get("lat") is not None and d.get("lon") is not None:
+                self._geo_pos = (float(d["lat"]), float(d["lon"]))  # 같은 자리면 다시 묻지 않는다
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, TypeError) as e:
+            self.log.warning("last address: %s", e)
+
+    def _save_last(self) -> None:
+        if not self.state_file or not self._geo_pos:
+            return
+        doc = {"lat": self._geo_pos[0], "lon": self._geo_pos[1], "address": self.address,
+               "address_full": self.address_full, "at": self.address_at}
+        try:
+            tmp = self.state_file.with_suffix(".tmp")
+            tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(self.state_file)
+        except OSError as e:
+            self.log.warning("last address: %s", e)
 
     # ---- 루프 ----
 
@@ -336,7 +371,7 @@ class Gps(Device):
             "fix": g.fix, "lat": g.lat, "lon": g.lon, "alt_m": g.alt_m, "sats": g.sats, "sats_seen": g.sats_seen,
             "hdop": g.hdop, "speed_kmh": g.speed_kmh, "course": g.course, "heading": self.heading, "utc": g.utc,
             "compass": {"ok": self.compass_ok, "strength": self.mag_strength, "calibrating": self.calibrating},
-            "address": self.address, "address_full": self.address_full,
+            "address": self.address, "address_full": self.address_full, "address_at": self.address_at,
         }
 
     async def write_control(self, name: str, value: str) -> bool:

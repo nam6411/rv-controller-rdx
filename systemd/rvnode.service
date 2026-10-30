@@ -13,6 +13,8 @@ SupplementaryGroups=bluetooth gpio spi i2c dialout video
 Environment=PYTHONUNBUFFERED=1
 ExecStart=/opt/rvnode/venv/bin/python -m rvnode -c /etc/rvnode.yaml
 WorkingDirectory=/opt/rvnode
+# /var/lib/rvnode — 재시작 뒤에도 남길 것 (GPS 마지막 주소 등). STATE_DIRECTORY로 넘어온다
+StateDirectory=rvnode
 # 웹 설정 페이지를 80번에서 연다
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 Restart=always

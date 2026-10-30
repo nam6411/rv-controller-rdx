@@ -59,3 +59,50 @@ def test_device_tracker_discovery():
     assert doc["json_attributes_topic"] == "rv/radxa/gps/location" and doc["source_type"] == "gps"
     assert doc["name"] == "Location" and "dev" in doc and doc["avty"]
     assert "homeassistant/sensor/9FCEE4_gps/address/config" in cfgs
+
+
+def test_last_address_survives_restart(tmp_path, monkeypatch):
+    import asyncio
+
+    from rvnode.config import parse
+    from rvnode.devices import gps as gm
+    from rvnode.node import Node
+
+    from .conftest import FakeBus
+
+    def make():
+        node = Node(parse({"node": {"device_id": "9FCEE4", "base": "rv/radxa"},
+                           "devices": [{"type": "gps", "slug": "gps", "params": {"compass": False}}]}))
+        node.bus = FakeBus()
+        return node.devices[0]
+
+    monkeypatch.setenv("STATE_DIRECTORY", str(tmp_path))
+    d = make()
+    assert d.state()["address"] is None
+
+    class Resp:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def raise_for_status(self): pass
+        async def json(self):
+            return {"display_name": "182, 동탄대로, 화성시", "address": {"province": "경기도", "city": "화성시", "road": "동탄대로",
+                                                                    "house_number": "182"}}
+
+    class Session:
+        def __init__(self, **kw): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        def get(self, *a, **kw): return Resp()
+
+    import aiohttp
+    monkeypatch.setattr(aiohttp, "ClientSession", Session)
+    asyncio.run(d._geocode(37.19, 127.10))
+    assert (tmp_path / "gps.json").exists()
+
+    d2 = make()                                    # 재시작 — 위성 없이도 주소가 있다
+    st = d2.state()
+    assert st["fix"] is False and st["address"] == d.address and st["address_at"]
+    assert d2._geo_pos == (37.19, 127.10)          # 같은 자리면 다시 묻지 않는다
+    monkeypatch.delenv("STATE_DIRECTORY")
+    assert make().state_file is None
+    assert gm.short_address({"address": {"road": "x"}}) == "x"

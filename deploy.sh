@@ -77,6 +77,8 @@ rsync -az --delete \
 
 ssh "$HOST" "sh -eu" <<EOF
 $DEST/venv/bin/pip install --quiet --upgrade "$DEST/src[board]"
+# Radxa의 99-radxa-spidev.rules가 spidev 장치 그룹을 spi 대신 spidev로 덮어쓴다 — 둘 다 넣는다 (CC1101)
+getent group spidev >/dev/null && sudo usermod -aG spidev rvnode
 sudo install -m 644 $DEST/src/systemd/rvnode.service /etc/systemd/system/rvnode.service
 sudo install -m 644 $DEST/src/mosquitto/rv-local.conf /etc/mosquitto/conf.d/rv-local.conf
 # 브리지 파일은 rvnode가 웹 설정으로 다시 쓴다 — rvnode 소유, mosquitto가 읽음
