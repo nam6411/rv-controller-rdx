@@ -126,6 +126,7 @@ devices:
       ebl: { enabled: true, lin: 2 }
       alde: { enabled: true, lin: 1 }
       aventa: { enabled: true, lin: 1, model: comfort, on_mode: auto, default_set_c: 22 }
+      fridge: { enabled: true, lin: 1 }   # Thetford T1156 (ESP에는 없다)
       level: { pitch_axis: z, pitch_sign: -1, roll_axis: y, roll_sign: 1, pitch_offset: 0, roll_offset: 0 }
 
   # BLE TPMS (수동 스캔, 연결 없음) — ESP tpms와 같은 키. 넘겨받으면 slug: tpms (base가 rv/mach면 rv/mach/tpms)

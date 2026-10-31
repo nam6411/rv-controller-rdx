@@ -102,3 +102,20 @@ def test_level_text():
     assert mach.low_side(1.25, "뒤가", "앞이") == "뒤가 1.2° 낮음" or mach.low_side(1.25, "뒤가", "앞이") == "뒤가 1.3° 낮음"
     up, deg = mach.tilt((0.017, -0.035, 0.999))
     assert up == 2 and deg[0] == pytest.approx(0.975, abs=0.01)
+
+
+def test_fridge_decode_and_control():
+    f = mach.Fridge()
+    assert mach.decode_fridge(bytes.fromhex("084c040125000000890000"), f)   # 현장 T1156 (2026-10-31)
+    assert (f.on, f.night, f.level, f.freezer, f.door, f.error) == (True, False, 5, 2, False, 0)
+    assert f.voltage == pytest.approx(13.7)
+    assert mach.decode_fridge(bytes.fromhex("084c040920200000890000"), f) and f.night and f.door
+    assert not mach.decode_fridge(bytes(5), mach.Fridge())
+    f = mach.Fridge()
+    mach.decode_fridge(bytes.fromhex("084c040125000000890000"), f)
+    # 현장에서 보낸 값 그대로
+    assert mach.fridge_control(f, night=True) == bytes.fromhex("0925000000000000")
+    assert mach.fridge_control(f, level=4) == bytes.fromhex("0124000000000000")
+    assert mach.fridge_control(f, freezer=1) == bytes.fromhex("0115000000000000")
+    assert mach.fridge_control(f, on=False) == bytes.fromhex("0025000000000000")
+    assert mach.fridge_control(f, level=9)[1] == 0x25

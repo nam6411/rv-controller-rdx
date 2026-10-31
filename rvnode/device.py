@@ -40,6 +40,7 @@ class BinarySensor:
     label: str
     path: str = ""  # state JSON의 bool 경로 (비우면 key)
     dev_class: str = ""  # HA device_class (power, motion …)
+    avail: str | None = None  # Sensor.avail과 같다
 
     @property
     def json_path(self) -> str:

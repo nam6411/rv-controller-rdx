@@ -326,6 +326,56 @@ def alde_set_temp(a: Alde, c: int) -> bytes:
     return bytes(out)
 
 
+# ---- Thetford T1156 냉장고 (rv-controller docs/22 §6.7.1, 현장 검증 2026-10-31) ----
+# 앱에 드라이버가 없다. T2000(앱 Y3/a)과 비트 위치는 같고 단계는 +1 없이 화면 값 그대로다.
+
+FRIDGE_STATUS, FRIDGE_CONTROL = 0x0C, 0x0B
+FRIDGE_LEVEL_MIN, FRIDGE_LEVEL_MAX = 1, 5
+FRIDGE_FREEZER_MAX = 2
+
+
+@dataclass
+class Fridge:
+    valid: bool = False
+    on: bool = False
+    night: bool = False
+    level: int = 0  # 냉장 단계 1~5
+    freezer: int = 0  # 냉동실 단계 0~2
+    door: bool = False  # 냉장실·냉동실 문 중 하나라도 열림
+    error: int = 0
+    voltage: float = 0  # 전원 전압 (d5 × 0.1 V, 추정)
+    raw: bytes = field(default=bytes(5))
+
+
+def decode_fridge(r: bytes, f: Fridge) -> bool:
+    if len(r) < LIN_REPLY_LEN:
+        return False
+    d = r[3:]
+    f.on, f.night = bool(d[0] & 0x01), bool(d[0] & 0x08)
+    f.level, f.freezer = d[1] & 0x0F, d[1] >> 4
+    f.door = bool(d[2] & 0x20)
+    f.error = d[3]
+    f.voltage = d[5] / 10
+    f.raw = bytes(d[:5])
+    f.valid = True
+    return True
+
+
+def fridge_control(f: Fridge, on: bool | None = None, night: bool | None = None,
+                   level: int | None = None, freezer: int | None = None) -> bytes:
+    """제어 0x0B = 상태 d0~d4 + 00 00 00, 바꿀 비트만 고친다."""
+    out = bytearray(f.raw) + bytearray(3)
+    if on is not None:
+        out[0] = (out[0] & ~0x01 & 0xFF) | (0x01 if on else 0)
+    if night is not None:
+        out[0] = (out[0] & ~0x08 & 0xFF) | (0x08 if night else 0)
+    if level is not None:
+        out[1] = (out[1] & 0xF0) | max(FRIDGE_LEVEL_MIN, min(FRIDGE_LEVEL_MAX, level))
+    if freezer is not None:
+        out[1] = (out[1] & 0x0F) | (max(0, min(FRIDGE_FREEZER_MAX, freezer)) << 4)
+    return bytes(out)
+
+
 # ---- 수평 (ESP Mach::toJson) ----
 
 LEVEL_FLAT_DEG = 0.3

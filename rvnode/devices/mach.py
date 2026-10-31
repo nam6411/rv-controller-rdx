@@ -2,15 +2,16 @@
 넘겨받을 때 HA 엔티티·디스플레이·UPower 인터록(ac.mode)이 이어진다 (rv-controller docs/19, docs/22, docs/29 §3).
 
 장치: Schaudt CSV416(배터리·물탱크·조명·펌프, LIN 2), Alde 3020(보일러, LIN 1), Truma Aventa(에어컨, LIN 1),
-MACH 내장 가속도계(수평). 패널이 꺼지면 패널 스위치 말고는 HA에서 unavailable(state.live), 에어컨은 230V가 있을 때만
-답한다(state.ac.ok). 폰 앱과 동시에 연결된다.
+Thetford T1156(냉장고, LIN 1 — 앱에 없는 장치, docs/22 §6.7.1), MACH 내장 가속도계(수평). 패널이 꺼지면 패널 스위치와
+냉장고 말고는 HA에서 unavailable(state.live), 에어컨은 230V가 있을 때만 답한다(state.ac.ok). 냉장고는 패널과 상관없이
+답하는 동안 쓸 수 있다(state.fridge.ok). 폰 앱과 동시에 연결된다.
 
 BLE: Nordic UART(6E400001…)로 MUX/DLP 프레임, CB2D0004 서비스로 할당 ID 핸드셰이크. 쓰기는 MITM 페어링(PIN, 기본 123456)이 필요하다.
 6E400004(NUS 부트로더)와 FE59(DFU)는 절대 쓰지 않는다.
 
 params (ESP와 같은 이름):
   name / address / pin           BLE (기본 MACH-BASIC / "" / 123456)
-  ebl, alde, aventa              {enabled, lin(1~3)}  aventa는 model·on_mode·default_set_c 도
+  ebl, alde, aventa, fridge      {enabled, lin(1~3)}  aventa는 model·on_mode·default_set_c 도 (fridge는 ESP에 없다)
   level                          {pitch_axis, pitch_sign, roll_axis, roll_sign, pitch_offset, roll_offset}
   interval_s                     폴링 주기 (기본 3)
 """
@@ -21,7 +22,7 @@ import asyncio
 from typing import Any
 
 from ..ble import connecting, scanner
-from ..device import Control, Device, Sensor, Switch
+from ..device import BinarySensor, Control, Device, Sensor, Switch
 from ..frames import aventa as av
 from ..frames import mach as m
 
@@ -78,6 +79,22 @@ AC_CONTROLS = (
     Control("ac_mode", "AC Mode", "select", "ac.mode", options=("off", "fan", "cool", "heat", "auto"), avail="ac.ok"),
     Control("ac_fan", "AC Fan", "select", "ac.fan", options=("low", "mid", "high", "night"), avail="ac.ok"),
 )
+FRIDGE_SWITCHES = (
+    Switch("fridge", "Fridge", "fridge.ok"),
+    Switch("fridge_night", "Fridge Night Mode", "fridge.ok"),
+)
+FRIDGE_SENSORS = (
+    Sensor("fridge_error", "Fridge Error", "", "", "", "fridge.error", "fridge.ok"),
+    Sensor("fridge_voltage", "Fridge Supply Voltage", "V", "voltage", "measurement", "fridge.voltage", "fridge.ok"),
+)
+FRIDGE_BINARY = (BinarySensor("fridge_door", "Fridge Door", "fridge.door", "door", "fridge.ok"),)
+FRIDGE_CONTROLS = (
+    Control("fridge_level", "Fridge Level", "number", "fridge.level", m.FRIDGE_LEVEL_MIN, m.FRIDGE_LEVEL_MAX, 1,
+            avail="fridge.ok"),
+    Control("fridge_freezer", "Fridge Freezer Level", "number", "fridge.freezer", 0, m.FRIDGE_FREEZER_MAX, 1,
+            avail="fridge.ok"),
+)
+FRIDGE_WRITE_TRIES = 3  # 앱의 냉장고 드라이버처럼 쓰고 1초 뒤 확인, 최대 3회 (docs/22 §6.2)
 AC_MODE_BY_NAME = {v: k for k, v in av.MODE_NAMES.items()}
 AC_FAN_BY_NAME = {v: k for k, v in av.FAN_NAMES.items()}
 
@@ -111,9 +128,11 @@ class Mach(Device):
         self.use_ebl = bool(sub("ebl").get("enabled", True))
         self.use_alde = bool(sub("alde").get("enabled", True))
         self.use_ac = bool(sub("aventa").get("enabled", True))
+        self.use_fridge = bool(sub("fridge").get("enabled", True))
         self.ebl_lin = _lin(sub("ebl").get("lin"), m.LIN_2)
         self.alde_lin = _lin(sub("alde").get("lin"), m.LIN_1)
         self.ac_lin = _lin(sub("aventa").get("lin"), m.LIN_1)
+        self.fridge_lin = _lin(sub("fridge").get("lin"), m.LIN_1)
         self.ac_model = av.MODELS.get(str(sub("aventa").get("model", "comfort")), av.COMFORT)
         self.ac_on_mode = AC_MODE_BY_NAME.get(str(sub("aventa").get("on_mode", "auto")), av.AUTO)
         self.ac_default_set = int(sub("aventa").get("default_set_c", 22))
@@ -128,14 +147,20 @@ class Mach(Device):
         self.interval = float(p.get("interval_s", 3))
 
         self.sensors = ACCEL_SENSORS + (EBL_SENSORS if self.use_ebl else ()) + \
-            (ALDE_SENSORS if self.use_alde else ()) + (AC_SENSORS if self.use_ac else ())
-        self.controls = (ALDE_CONTROLS if self.use_alde else ()) + (AC_CONTROLS if self.use_ac else ())
+            (ALDE_SENSORS if self.use_alde else ()) + (AC_SENSORS if self.use_ac else ()) + \
+            (FRIDGE_SENSORS if self.use_fridge else ())
+        self.binary_sensors = FRIDGE_BINARY if self.use_fridge else ()
+        self.switches = SWITCHES + (FRIDGE_SWITCHES if self.use_fridge else ())
+        self.controls = (ALDE_CONTROLS if self.use_alde else ()) + (AC_CONTROLS if self.use_ac else ()) + \
+            (FRIDGE_CONTROLS if self.use_fridge else ())
 
         self.ebl = m.Ebl()
         self.alde = m.Alde()
         self.ac: av.Status | None = None
         self.ac_raw = b""
         self.ac_result = ""
+        self.fridge = m.Fridge()
+        self.fridge_result = ""
         self.accel: m.Accel | None = None
         self.accel_avg: list[float] | None = None
         self.accel_result = ""
@@ -294,6 +319,23 @@ class Mach(Device):
         self.ac_result = "ok"
         return True
 
+    async def _read_fridge(self) -> bool:
+        """에어컨처럼 응답이 없어도 폴링 오류로 치지 않는다(냉장고만 unavailable)."""
+        try:
+            r = await self._read_lin(self.fridge_lin, m.FRIDGE_STATUS)
+            if not m.decode_fridge(r, self.fridge):
+                raise ValueError(f"short reply {len(r)}")
+        except Exception as e:
+            err = str(e) or type(e).__name__
+            if self.fridge.valid or self.fridge_result != err:
+                self.log.info("fridge 0x0C %s", err)
+            self.fridge.valid, self.fridge_result = False, err
+            return False
+        if self.fridge_result != "ok":
+            self.log.info("fridge 0x0C reply %s", r[: m.LIN_REPLY_LEN].hex(" "))
+        self.fridge_result = "ok"
+        return True
+
     async def _read_accel(self) -> None:
         try:
             r = await self._request(m.MISC, m.CMD_GET_ACCEL, b"\x00")
@@ -334,6 +376,8 @@ class Mach(Device):
                 self._drop(name)
         if self.use_ac:
             await self._read_aventa()
+        if self.use_fridge:
+            await self._read_fridge()
         await self._read_accel()
 
     async def run(self) -> None:
@@ -392,6 +436,15 @@ class Mach(Device):
             elif self.ac_result:
                 v["reply"] = self.ac_result
             out["ac"] = v
+        if self.use_fridge:
+            f = self.fridge
+            fr: dict[str, Any] = {"ok": f.valid}
+            if f.valid:
+                fr.update(on=f.on, night=f.night, level=f.level, freezer=f.freezer, door=f.door, error=f.error,
+                          voltage=f.voltage, raw=f.raw.hex())
+            elif self.fridge_result:
+                fr["reply"] = self.fridge_result
+            out["fridge"] = fr
         g: dict[str, Any] = {"ok": self.accel is not None}
         if self.accel is not None and self.accel_avg:
             a = self.accel
@@ -428,6 +481,10 @@ class Mach(Device):
             return self.alde.gas if self.use_alde and self.alde.valid else None
         if name == "ac":
             return (self.ac.mode != av.OFF) if self.use_ac and self.ac is not None else None
+        if name in ("fridge", "fridge_night"):
+            if not (self.use_fridge and self.fridge.valid):
+                return None
+            return self.fridge.on if name == "fridge" else self.fridge.night
         if not (self.use_ebl and self.ebl.status_valid):
             return None
         return {"int_light": self.ebl.int_light, "ext_light": self.ebl.ext_light, "water_pump": self.ebl.pump,
@@ -458,6 +515,19 @@ class Mach(Device):
         await self._read_alde()
         return True
 
+    async def _write_fridge(self, check, **change) -> bool:
+        """현재 상태를 읽어 바꿀 비트만 고쳐 쓰고, 1초 뒤 다시 읽어 check()가 맞을 때까지 최대 3회."""
+        if not self.use_fridge:
+            return False
+        for _ in range(FRIDGE_WRITE_TRIES):
+            if not await self._read_fridge():
+                return False
+            if check():
+                return True
+            await self._write_lin(self.fridge_lin, m.FRIDGE_CONTROL, m.fridge_control(self.fridge, **change))
+            await asyncio.sleep(1)
+        return await self._read_fridge() and check()
+
     async def _read_status_after_write(self) -> None:
         try:
             await self._read_ebl(m.EBL_STATUS)
@@ -467,6 +537,14 @@ class Mach(Device):
     async def write_switch(self, name: str, on: bool) -> bool:
         if not self.connected:
             return False
+        if name in ("fridge", "fridge_night"):  # 냉장고는 패널이 꺼져도 답한다
+            try:
+                if name == "fridge":
+                    return await self._write_fridge(lambda: self.fridge.on == on, on=on)
+                return await self._write_fridge(lambda: self.fridge.night == on, night=on)
+            except Exception as e:
+                self.log.warning("%s write: %s", name, e)
+                return False
         if name != "panel" and not self.live:
             self.log.warning("%s: panel off", name)
             return False
@@ -503,7 +581,22 @@ class Mach(Device):
         return self.switch_state(name) == on
 
     async def write_control(self, name: str, value: str) -> bool:
-        if not self.connected or not self.live:
+        if not self.connected:
+            return False
+        if name in ("fridge_level", "fridge_freezer"):  # 패널과 상관없다
+            try:
+                v = round(float(value))
+                if name == "fridge_level":
+                    if not m.FRIDGE_LEVEL_MIN <= v <= m.FRIDGE_LEVEL_MAX:
+                        return False
+                    return await self._write_fridge(lambda: self.fridge.level == v, level=v)
+                if not 0 <= v <= m.FRIDGE_FREEZER_MAX:
+                    return False
+                return await self._write_fridge(lambda: self.fridge.freezer == v, freezer=v)
+            except Exception as e:
+                self.log.warning("%s write: %s", name, e)
+                return False
+        if not self.live:
             return False
         try:
             if name.startswith("ac_"):

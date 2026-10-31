@@ -87,7 +87,7 @@ def binary_sensor(info: DeviceInfo, dev: Device, b: BinarySensor) -> dict[str, A
     doc["val_tpl"] = f"{{{{ 'ON' if value_json.{b.json_path} else 'OFF' }}}}"
     if b.dev_class:
         doc["dev_cla"] = b.dev_class
-    return _finish(doc, info, dev, None)
+    return _finish(doc, info, dev, b.avail)
 
 
 def switch(info: DeviceInfo, dev: Device, s: Switch) -> dict[str, Any]:

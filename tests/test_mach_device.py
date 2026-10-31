@@ -18,6 +18,7 @@ EBL_BATTERY = bytes.fromhex("08d62c05085385987effff")
 ALDE = bytes.fromhex("085b888cfe84a43e290000")
 AVENTA = bytes([0, 0, 0, 0xA4, 0x0B, 0x86, 0x0B, 0x72, 0x05, 0x00, 0x00])
 ACCEL = bytes([0x00, 0x00, 0xFC, 0x18, 0x40, 0x00, 61])
+FRIDGE = bytes.fromhex("084c040125000000890000")
 
 
 def mux(dlp: bytes) -> bytes:
@@ -37,7 +38,8 @@ class FakeMach:
         self.dev = dev
         self.is_connected = True
         self.lin = {(m.LIN_2, m.EBL_STATUS): ebl_status_data(), (m.LIN_2, m.EBL_BATTERY): EBL_BATTERY,
-                    (m.LIN_1, m.ALDE_STATUS): ALDE, (m.LIN_1, av.FRAME_STATUS): AVENTA}
+                    (m.LIN_1, m.ALDE_STATUS): ALDE, (m.LIN_1, av.FRAME_STATUS): AVENTA,
+                    (m.LIN_1, m.FRIDGE_STATUS): FRIDGE}
         self.writes: list[tuple[int, int, bytes]] = []
 
     async def write_gatt_char(self, uuid, frame, response=True):
@@ -89,9 +91,11 @@ def dev(monkeypatch):
 def test_entities_match_esp(dev):
     keys = {s.key for s in dev.sensors}
     assert {"ebl_bat_v", "ebl_soc", "alde_sofa", "level_pitch", "ac_room"} <= keys
-    assert [s.name for s in dev.switches] == ["int_light", "ext_light", "water_pump", "heater", "panel", "ac"]
+    assert [s.name for s in dev.switches] == ["int_light", "ext_light", "water_pump", "heater", "panel", "ac",
+                                              "fridge", "fridge_night"]
     assert {c.name for c in dev.controls} == {"alde_set_temp", "alde_energy", "alde_water",
-                                              "ac_set_temp", "ac_mode", "ac_fan"}
+                                              "ac_set_temp", "ac_mode", "ac_fan", "fridge_level", "fridge_freezer"}
+    assert [b.key for b in dev.binary_sensors] == ["fridge_door"]
 
 
 def test_poll_builds_esp_state(dev):
@@ -146,3 +150,53 @@ def test_switch_rejected_when_panel_off(dev):
         return await dev.write_switch("int_light", True)
     assert not asyncio.run(go())
     assert dev.client.writes == []
+
+
+def fridge_follows_writes(dev):
+    """0x0B를 받으면 0x0C가 그 d0~d1을 돌려주게 한다 (현장 T1156처럼 한 번에 반영)."""
+    def on_write(iface, frame, ctrl):
+        if (iface, frame) == (m.LIN_1, m.FRIDGE_CONTROL):
+            r = bytearray(dev.client.lin[(m.LIN_1, m.FRIDGE_STATUS)])
+            r[3:5] = ctrl[0:2]
+            dev.client.lin[(m.LIN_1, m.FRIDGE_STATUS)] = bytes(r)
+    dev.client.on_write = on_write
+
+
+def test_fridge_state_and_writes(dev):
+    fridge_follows_writes(dev)
+
+    async def go():
+        await dev._poll_once()
+        s = dev.state()["fridge"]
+        assert s == {"ok": True, "on": True, "night": False, "level": 5, "freezer": 2, "door": False, "error": 0,
+                     "voltage": pytest.approx(13.7), "raw": "0125000000"}
+        assert dev.switch_state("fridge") is True and dev.switch_state("fridge_night") is False
+        assert await dev.write_control("fridge_level", "4")
+        assert await dev.write_switch("fridge_night", True)
+        assert not await dev.write_control("fridge_level", "6")
+        assert await dev.write_switch("fridge_night", True)  # 이미 그 값이면 안 쓴다
+    asyncio.run(go())
+    assert dev.client.writes == [(m.LIN_1, m.FRIDGE_CONTROL, bytes.fromhex("0124000000000000")),
+                                 (m.LIN_1, m.FRIDGE_CONTROL, bytes.fromhex("0924000000000000"))]
+
+
+def test_fridge_works_with_panel_off(dev):
+    fridge_follows_writes(dev)
+    async def go():
+        await dev._poll_once()
+        dev.ebl.panel = False
+        return await dev.write_control("fridge_freezer", "1")
+    assert asyncio.run(go())
+    assert dev.client.writes == [(m.LIN_1, m.FRIDGE_CONTROL, bytes.fromhex("0115000000000000"))]
+
+
+def test_fridge_write_gives_up_after_three(dev):
+    assert not asyncio.run(poll_then(dev, dev.write_switch, "fridge", False))  # on_write 없음 — 써도 0x0C가 그대로
+    assert len(dev.client.writes) == md.FRIDGE_WRITE_TRIES
+
+
+def test_no_fridge_is_not_a_poll_error(dev):
+    del dev.client.lin[(m.LIN_1, m.FRIDGE_STATUS)]
+    asyncio.run(dev._poll_once())
+    assert dev.state()["fridge"] == {"ok": False, "reply": "LIN timeout (C)"}
+    assert dev.switch_state("fridge") is None
