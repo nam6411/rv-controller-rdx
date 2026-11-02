@@ -33,7 +33,10 @@ class FakeNm:
 
     async def leave_ap(self, name=""):
         self.calls.append(f"leave_ap:{name}")
-        self.mode = "sta" if self.joins and (self.visible or name) else "down"
+        if not name:
+            self.mode = "ap"  # 실제 NM: 이름 없이 device connect면 가장 최근 프로필인 AP를 다시 켠다
+            return
+        self.mode = "sta" if self.joins else "down"
 
 
 class Clock:
@@ -109,9 +112,23 @@ async def test_ap_returns_to_router_when_visible():
     assert w.state == "ap"                       # 아직 스캔할 때가 아니다
     clock.t += 1
     await w.tick()
-    assert w.state == "joining" and "leave_ap:" in nm.calls
+    assert w.state == "joining" and "leave_ap:Home" in nm.calls
     await w.tick()
     assert w.state == "sta"
+
+
+async def test_return_picks_strongest_visible_profile():
+    nm = FakeNm(mode="ap", visible=(), saved=("Home", "Car"))
+    nm.scan = lambda ap_mode: _async([{"ssid": "Home", "signal": -80}, {"ssid": "Car", "signal": -55}])
+    w, clock = make(nm, rescan_s=30)
+    await w.tick()
+    clock.t += 30
+    await w.tick()
+    assert nm.calls[-1] == "leave_ap:Car"
+
+
+async def _async(v):
+    return v
 
 
 async def test_failed_join_goes_back_to_ap():
@@ -135,7 +152,7 @@ async def test_no_ap_scan_falls_back_to_blind_retry():
     assert w.state == "ap"                       # 스캔이 안 되면 바로는 안 내려간다
     clock.t += 270
     await w.tick()
-    assert w.state == "joining"
+    assert w.state == "joining" and nm.calls[-1] == "leave_ap:Home"
 
 
 async def test_no_saved_router_stays_ap():

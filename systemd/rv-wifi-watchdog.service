@@ -1,0 +1,17 @@
+[Unit]
+Description=RV Wi-Fi watchdog (reload driver / reboot when the saved router is visible but unreachable)
+After=NetworkManager.service
+
+[Service]
+Type=simple
+# root — 드라이버(modprobe)·재부팅. rvnode와 따로 돌아 rvnode가 죽어도 감시한다 (rvnode/wifiwatch.py)
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/rvnode/venv/bin/python -m rvnode.wifiwatch
+WorkingDirectory=/opt/rvnode
+# /var/lib/rv-wifi-watchdog/last_reboot — 재부팅을 되풀이하지 않게
+StateDirectory=rv-wifi-watchdog
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

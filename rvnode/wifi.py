@@ -343,10 +343,15 @@ class Wifi:
             self.last_scan = vis
             seen = saved & {n["ssid"] for n in vis}
             if seen:
-                await self._join(f"{', '.join(sorted(seen))} 보임")
+                best = max((n for n in vis if n["ssid"] in seen), key=lambda n: n["signal"] if n["signal"] is not None else -999)
+                await self._join(f"{', '.join(sorted(seen))} 보임", self._profile(best["ssid"]))
         elif self.cfg.sta_retry_s and now >= self.next_blind:
             self.next_blind = now + self.cfg.sta_retry_s
-            await self._join("AP 중 스캔이 안 돼 그냥 붙어 봄")
+            await self._join("AP 중 스캔이 안 돼 그냥 붙어 봄", next(iter(self.saved_ssids)))
+
+    def _profile(self, ssid: str) -> str:
+        # 프로필 이름을 꼭 넘긴다 — 이름 없이 `nmcli device connect`면 NM이 가장 최근 프로필(= AP)을 다시 켠다 (2026-10-31 실측)
+        return next(name for name, s in self.saved_ssids.items() if s == ssid)
 
     # ---- 웹에서 ----
 

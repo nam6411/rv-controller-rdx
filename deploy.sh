@@ -80,6 +80,7 @@ $DEST/venv/bin/pip install --quiet --upgrade "$DEST/src[board]"
 # Radxa의 99-radxa-spidev.rules가 spidev 장치 그룹을 spi 대신 spidev로 덮어쓴다 — 둘 다 넣는다 (CC1101)
 getent group spidev >/dev/null && sudo usermod -aG spidev rvnode
 sudo install -m 644 $DEST/src/systemd/rvnode.service /etc/systemd/system/rvnode.service
+sudo install -m 644 $DEST/src/systemd/rv-wifi-watchdog.service /etc/systemd/system/rv-wifi-watchdog.service
 sudo install -m 644 $DEST/src/mosquitto/rv-local.conf /etc/mosquitto/conf.d/rv-local.conf
 # 브리지 파일은 rvnode가 웹 설정으로 다시 쓴다 — rvnode 소유, mosquitto가 읽음
 [ -f /etc/mosquitto/conf.d/rv-bridge.conf ] || { echo '# rvnode: 외부 브리지 꺼짐' | sudo tee /etc/mosquitto/conf.d/rv-bridge.conf >/dev/null; }
@@ -99,6 +100,8 @@ if ! cmp -s $DEST/src/chrony/rvnode-gps.conf /etc/chrony/conf.d/rvnode-gps.conf;
   sudo systemctl restart chrony
 fi
 sudo systemctl restart rvnode
+sudo systemctl enable rv-wifi-watchdog >/dev/null 2>&1
+sudo systemctl restart rv-wifi-watchdog
 # 전원이 곧 끊겨도 방금 쓴 유닛·설정이 빈 파일로 남지 않게 (2026-10-29: 배포 직후 전원이 나가 0바이트가 됐다)
 sync
 sleep 3
