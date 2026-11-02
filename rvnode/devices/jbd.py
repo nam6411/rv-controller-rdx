@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ..ble import connecting, scanner
+from ..ble import connecting, drop_stale, scanner
 from ..device import Device, Sensor, Switch
 from ..frames import jbd
 
@@ -97,6 +97,7 @@ class Jbd(Device):
 
         dev = await scanner.find(match, timeout=15)
         if dev is None:
+            await drop_stale(self.address, self.name, SERVICE, self.log)
             raise ConnectionError(f"BMS {self.address or self.name or '(FF00)'} not found")
         client = BleakClient(dev, timeout=15, disconnected_callback=lambda _c: self._rx_event.set())
         await client.connect()

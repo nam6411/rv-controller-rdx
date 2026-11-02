@@ -2,6 +2,8 @@
 
 KeyboardOnly 능력으로 등록하고 BlueZ가 묻는 passkey에 설정한 PIN을 답한다. 한 번 본딩되면 BlueZ가 키를 저장해
 다음부터는 묻지 않는다. Linux(BlueZ + D-Bus)에서만 쓴다 — bleak가 이미 dbus-fast를 끌어온다.
+
+disconnect_stale: 연결을 끊지 않고 끝난 프로세스의 링크를 BlueZ가 쥐고 있으면 장치가 광고를 멈춰 다시 찾을 수 없다.
 """
 
 import logging  # from __future__ annotations를 쓰면 dbus-fast가 시그니처를 못 읽는다
@@ -71,3 +73,45 @@ async def ensure_agent(pin: int) -> None:
     await mgr.call_request_default_agent(AGENT_PATH)
     _registered[pin] = bus
     log.info("BlueZ agent registered (KeyboardOnly)")
+
+
+def stale_paths(objects: dict, address: str = "", name: str = "", uuid: str = "") -> list[str]:
+    """GetManagedObjects 결과(값은 풀어 둔 것)에서 연결된 채 남은 장치 경로. 찾는 조건은 scanner.find와 같은 순서."""
+    out = []
+    for path, ifaces in objects.items():
+        d = ifaces.get("org.bluez.Device1")
+        if not d or not d.get("Connected"):
+            continue
+        if address:
+            hit = str(d.get("Address", "")).upper() == address.upper()
+        elif name:
+            hit = name in (d.get("Name"), d.get("Alias"))
+        else:
+            hit = bool(uuid) and uuid in (d.get("UUIDs") or [])
+        if hit:
+            out.append(path)
+    return out
+
+
+async def disconnect_stale(address: str = "", name: str = "", uuid: str = "") -> list[str]:
+    """찾는 장치가 광고하지 않을 때 부른다. BlueZ에 연결된 채 남아 있으면 끊는다 — 끊은 장치 경로를 돌려준다.
+
+    2026-11-03: rvnode를 다시 띄우자 BMS가 BlueZ에 Connected로 남아 'not found'만 반복했다.
+    """
+    from dbus_fast import BusType
+    from dbus_fast.aio import MessageBus
+
+    bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    try:
+        intro = await bus.introspect("org.bluez", "/")
+        om = bus.get_proxy_object("org.bluez", "/", intro).get_interface("org.freedesktop.DBus.ObjectManager")
+        raw = await om.call_get_managed_objects()
+        objects = {p: {i: {k: v.value for k, v in props.items()} for i, props in ifs.items()} for p, ifs in raw.items()}
+        paths = stale_paths(objects, address, name, uuid)
+        for p in paths:
+            dev = bus.get_proxy_object("org.bluez", p, await bus.introspect("org.bluez", p)).get_interface("org.bluez.Device1")
+            await dev.call_disconnect()
+            log.warning("disconnected stale BlueZ link %s", p)
+        return paths
+    finally:
+        bus.disconnect()

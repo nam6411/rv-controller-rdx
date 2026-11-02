@@ -139,6 +139,17 @@ class SharedScanner:
 scanner = SharedScanner()
 
 
+async def drop_stale(address: str, name: str, uuid: str, log_: logging.Logger) -> None:
+    """찾는 장치가 안 보일 때: BlueZ에 연결된 채 남은 링크를 끊어 다음 시도에 다시 광고하게 한다 (bluez_agent.disconnect_stale)."""
+    try:
+        from .bluez_agent import disconnect_stale
+
+        if await disconnect_stale(address, name, uuid):
+            log_.warning("stale BlueZ link dropped — retrying")
+    except Exception as e:  # D-Bus가 없는 곳(Mac·시험)이나 BlueZ 오류 — 원래 오류(not found)로 넘어간다
+        log_.debug("stale check: %s", e)
+
+
 @asynccontextmanager
 async def connecting():
     """연결은 한 번에 하나씩. 끝나면(성공·실패 모두) 스캔을 다시 켠다 — 모듈 설명의 커널 문제."""
