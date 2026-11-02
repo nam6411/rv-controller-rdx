@@ -18,7 +18,7 @@ params:
   pins            {ign, left, right, reverse, power, rear, left_out, right_out}: {chip, line, active_low?, bias?}
   off_delay_s     시동이 꺼진 뒤 더 켜 둘 시간 (기본 30)
   blink_hold_s    깜빡이 마지막 펄스 뒤 그쪽 시점을 유지할 시간 (기본 1.5)
-  poll_ms         입력 읽는 주기 (기본 20)
+  poll_ms         입력 읽는 주기 (기본 100 — 깜빡이 펄스는 수백 ms)
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ class Birdview(Device):
         self.in_cfg = {n: LineCfg.parse(n, pins.get(n)) for n in INPUTS}
         self.out_cfg = {n: LineCfg.parse(n, pins.get(n)) for n in OUTPUTS}
         self.backend = str(p.get("backend", "gpiod"))
-        self.poll = float(p.get("poll_ms", 20)) / 1000
+        self.poll = float(p.get("poll_ms", 100)) / 1000
         self.logic = Logic(off_delay_s=float(p.get("off_delay_s", 30)), blink_hold_s=float(p.get("blink_hold_s", 1.5)))
         self.clock = clock
         self.lines: Lines | None = None

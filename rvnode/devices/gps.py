@@ -361,7 +361,7 @@ class Gps(Device):
                         self.mag_strength = round(math.sqrt(ax * ax + ay * ay + az * az))
                         xs, ys, zs = [], [], []
                         last = now
-                    await asyncio.sleep(0.02)
+                    await asyncio.sleep(0.1)  # 10Hz면 1초 평균에 충분 — 50Hz는 스레드 왕복만으로 CPU를 먹었다 (2026-11-03)
             except Exception as e:
                 self.compass_ok = False
                 self.log.warning("compass read: %s", e)
