@@ -308,6 +308,7 @@ class Gps(Device):
 
     async def _gpsd_loop(self) -> None:
         while True:
+            writer = None
             try:
                 reader, writer = await asyncio.open_connection(*self.gpsd)
                 writer.write(b'?WATCH={"enable":true,"json":true};\n')
@@ -326,7 +327,11 @@ class Gps(Device):
                         await self._maybe_publish()
             except (OSError, ConnectionError, asyncio.TimeoutError) as e:
                 await self.error(f"gpsd: {e}")
-                await asyncio.sleep(5)
+            finally:
+                # 닫지 않으면 GPS가 빠져 15초 시간 초과가 날 때마다 gpsd 접속이 하나씩 남아 슬롯이 바닥난다 (2026-10-31)
+                if writer is not None:
+                    writer.close()
+            await asyncio.sleep(5)
 
     async def _compass_loop(self) -> None:
         while True:
